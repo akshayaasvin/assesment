@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "@/types/database";
+import { getSupabasePublicEnv } from "./env";
 
 /**
  * Server Component / Server Action / Route Handler client, scoped to the
@@ -9,26 +10,23 @@ import type { Database } from "@/types/database";
  */
 export async function createClient() {
   const cookieStore = await cookies();
+  const { url, publishableKey } = getSupabasePublicEnv();
 
-  return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            );
-          } catch {
-            // Called from a Server Component with no request context to write to.
-            // Safe to ignore when middleware is refreshing the session.
-          }
-        },
+  return createServerClient<Database>(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
       },
-    }
-  );
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Called from a Server Component with no request context to write to.
+          // Safe to ignore when middleware is refreshing the session.
+        }
+      },
+    },
+  });
 }

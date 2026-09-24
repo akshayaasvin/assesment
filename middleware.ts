@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdminUid } from "@/lib/auth/admin-uid";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 /**
  * Resolves the current Supabase user for the request, or `null` if there is
@@ -9,12 +10,9 @@ import { isAdminUid } from "@/lib/auth/admin-uid";
  * worst case we fall back to "not signed in" and let the login page handle it.
  */
 async function getUserSafely(request: NextRequest, response: { current: NextResponse }) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-
   try {
-    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    const { url, publishableKey } = getSupabasePublicEnv();
+    const supabase = createServerClient(url, publishableKey, {
       cookies: {
         getAll() {
           return request.cookies.getAll();
