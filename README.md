@@ -66,3 +66,4 @@ domain) in the Vercel project settings. No server filesystem or long-running pro
   migrating when Next's replacement API stabilizes.
 - Node 20 works but `@supabase/supabase-js` recommends Node 22+; upgrade when convenient.
 "# assesment" 
+"# assesment" 
