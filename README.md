@@ -57,15 +57,21 @@ browser).
 
 ## Deployment
 
-Built for Vercel. Set the same three Supabase env vars (plus `NEXT_PUBLIC_APP_URL` to your production
-domain) in the Vercel project settings. No server filesystem or long-running process is required.
+Built for Vercel. In the Vercel project's Settings -> Environment Variables, set exactly these four
+names (typos here are the #1 cause of a broken deployment - e.g. `SUPABASE_ANON_KEY` instead of
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` will make `/admin/login` return `500 MIDDLEWARE_INVOCATION_FAILED`):
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_APP_URL` (your production domain, no trailing slash)
+
+No server filesystem or long-running process is required. The middleware is defensive about this
+class of misconfiguration (it treats a missing/broken Supabase connection as "not signed in" rather
+than crashing), but sign-in itself still needs correct values to actually work.
 
 ## Known follow-ups
 
 - `middleware.ts` triggers a Next 16 deprecation notice ("use proxy instead") but works correctly; worth
   migrating when Next's replacement API stabilizes.
 - Node 20 works but `@supabase/supabase-js` recommends Node 22+; upgrade when convenient.
-"# assesment" 
-"# assesment" 
-"# assesment" 
- 

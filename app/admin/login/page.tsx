@@ -2,11 +2,18 @@
 
 import { Suspense, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/browser";
+
+function safeNextPath(value: string | null): string {
+  if (!value) return "/admin/dashboard";
+  // Only ever follow an internal admin path - never an absolute/external URL.
+  return value.startsWith("/admin") ? value : "/admin/dashboard";
+}
 
 export default function AdminLoginPage() {
   return (
@@ -21,7 +28,10 @@ function AdminLoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "unauthorized" ? "That account does not have admin access." : null
+  );
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -30,15 +40,23 @@ function AdminLoginForm() {
     setError(null);
 
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (signInError) {
+    if (signInError || !data.user) {
       setError("Invalid email or password.");
       setLoading(false);
       return;
     }
 
-    router.replace(searchParams.get("next") || "/admin/dashboard");
+    const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
+    if (profile?.role !== "admin") {
+      await supabase.auth.signOut();
+      setError("That account does not have admin access.");
+      setLoading(false);
+      return;
+    }
+
+    router.replace(safeNextPath(searchParams.get("next")));
     router.refresh();
   }
 
@@ -49,7 +67,7 @@ function AdminLoginForm() {
           <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-semibold">
             A
           </div>
-          <CardTitle className="text-xl">Admin console</CardTitle>
+          <CardTitle className="text-xl">Assistlana Assessment Platform</CardTitle>
           <CardDescription>Sign in to manage assessments, roles and candidates.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -68,15 +86,27 @@ function AdminLoginForm() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>

@@ -1,6 +1,3 @@
-import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
@@ -14,14 +11,10 @@ export default function Home() {
           <div>
             <h1 className="text-xl font-semibold text-foreground">Assistlana Assessment Platform</h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              Candidates take assessments via the link shared by their organizer.
+              Candidates take assessments via the link shared by their organizer. Ask your organizer for
+              your assessment link to get started.
             </p>
           </div>
-          <Button asChild size="lg" className="mt-2 w-full">
-            <Link href="/admin/login">
-              <ShieldCheck className="h-4 w-4" /> Admin console
-            </Link>
-          </Button>
         </CardContent>
       </Card>
     </div>

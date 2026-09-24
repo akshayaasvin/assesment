@@ -3,24 +3,13 @@
  *
  * Usage: npm run create-admin -- admin@company.com "StrongPassword123"
  */
-import "dotenv/config";
-import { createClient } from "@supabase/supabase-js";
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!url || !serviceKey) {
-  console.error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local first.");
-  process.exit(1);
-}
+import { supabaseAdmin as supabase } from "./supabase-admin-client";
 
 const [email, password] = process.argv.slice(2);
 if (!email || !password) {
   console.error('Usage: npm run create-admin -- admin@company.com "StrongPassword123"');
   process.exit(1);
 }
-
-const supabase = createClient(url, serviceKey);
 
 async function main() {
   const { data, error } = await supabase.auth.admin.createUser({

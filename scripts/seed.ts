@@ -4,19 +4,8 @@
  *
  * Usage: npm run seed
  */
-import "dotenv/config";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin as supabase } from "./supabase-admin-client";
 import { APTITUDE_QUESTIONS, ROLE_SEED_DATA, type SeedQuestion } from "./seed-data";
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!url || !serviceKey) {
-  console.error("Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env.local first.");
-  process.exit(1);
-}
-
-const supabase = createClient(url, serviceKey);
 
 async function upsertCategory(name: string): Promise<string> {
   const { data, error } = await supabase.from("categories").upsert({ name }, { onConflict: "name" }).select("id").single();
