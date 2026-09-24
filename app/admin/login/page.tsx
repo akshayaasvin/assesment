@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/browser";
+import { verifyAdminSession } from "@/lib/actions/auth";
 
 function safeNextPath(value: string | null): string {
   if (!value) return "/admin/dashboard";
@@ -48,8 +49,8 @@ function AdminLoginForm() {
       return;
     }
 
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
-    if (profile?.role !== "admin") {
+    const { authorized } = await verifyAdminSession();
+    if (!authorized) {
       await supabase.auth.signOut();
       setError("That account does not have admin access.");
       setLoading(false);

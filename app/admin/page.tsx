@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminUid } from "@/lib/auth/admin-uid";
 
 /**
  * `/admin` itself has no UI - it only decides where to send the visitor.
@@ -13,5 +14,5 @@ export default async function AdminIndexPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  redirect(user ? "/admin/dashboard" : "/admin/login");
+  redirect(isAdminUid(user?.id) ? "/admin/dashboard" : "/admin/login");
 }

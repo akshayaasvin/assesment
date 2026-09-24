@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminUid } from "@/lib/auth/admin-uid";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopbar } from "@/components/admin/topbar";
 
@@ -12,11 +13,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   if (!user) redirect("/admin/login");
 
-  // Authoritative role check - the middleware only confirms a session exists
-  // (cheap, edge-safe); this confirms that session actually belongs to an
-  // admin profile before rendering anything.
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (profile?.role !== "admin") {
+  // Authoritative check - the middleware already confirms this (edge-safe),
+  // but every admin page re-verifies server-side before rendering anything,
+  // in case this layout is ever reached by a path the middleware doesn't cover.
+  if (!isAdminUid(user.id)) {
     await supabase.auth.signOut();
     redirect("/admin/login?error=unauthorized");
   }

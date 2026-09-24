@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isAdminUid } from "@/lib/auth/admin-uid";
 
 /**
  * Resolves the current Supabase user for the request, or `null` if there is
@@ -42,20 +43,24 @@ export async function middleware(request: NextRequest) {
   // Next.js internals never reach this file at all (see matcher).
   const response = { current: NextResponse.next({ request }) };
   const user = await getUserSafely(request, response);
-
+  const authorized = isAdminUid(user?.id);
   const isLoginRoute = pathname === "/admin/login";
 
-  if (!isLoginRoute && !user) {
+  if (isLoginRoute) {
+    // Always publicly reachable so an unauthenticated (or wrong-account)
+    // admin can get to the sign-in form; only bounce away once already
+    // signed in as the one authorized admin.
+    return authorized ? NextResponse.redirect(new URL("/admin/dashboard", request.url)) : response.current;
+  }
+
+  if (!authorized) {
     const redirectUrl = new URL("/admin/login", request.url);
-    redirectUrl.searchParams.set("next", pathname);
+    if (user) redirectUrl.searchParams.set("error", "unauthorized");
+    else redirectUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (isLoginRoute && user) {
-    return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-  }
-
-  if (pathname === "/admin" && user) {
+  if (pathname === "/admin") {
     return NextResponse.redirect(new URL("/admin/dashboard", request.url));
   }
 
