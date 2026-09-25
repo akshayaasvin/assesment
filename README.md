@@ -30,6 +30,13 @@ questions from the old app (MCQ only - the old free-text debugging/output/concep
 mini compiler-adjacent flow this platform intentionally drops), plus one **draft** demo assessment per
 role with an Aptitude + Technical section. Publish/schedule them from the admin panel when ready.
 
+Forgot the admin password? There's no in-app "forgot password" flow - reset it directly via Supabase:
+
+```bash
+npm run reset-admin-password -- "NewStrongPassword123"          # resets the ADMIN_UID account
+npm run reset-admin-password -- "NewStrongPassword123" a@b.com  # or reset a specific account by email
+```
+
 ## 3. Run
 
 ```bash
@@ -62,16 +69,22 @@ names (typos here are the #1 cause of a broken deployment - e.g. `SUPABASE_ANON_
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` will make `/admin/login` return `500 MIDDLEWARE_INVOCATION_FAILED`):
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server-only)
 - `NEXT_PUBLIC_APP_URL` (your production domain, no trailing slash)
+- `ADMIN_UID` (server-only; the Supabase Auth user id allowed into /admin)
 
-No server filesystem or long-running process is required. The middleware is defensive about this
+No server filesystem or long-running process is required. `proxy.ts` is defensive about this
 class of misconfiguration (it treats a missing/broken Supabase connection as "not signed in" rather
 than crashing), but sign-in itself still needs correct values to actually work.
 
+## Admin authorization
+
+Two layers must agree: `ADMIN_UID` gates the /admin routes and every Server Action
+(`lib/auth/require-admin.ts`), and Postgres RLS gates every row via `is_admin()`, which requires a
+`profiles` row with `role = 'admin'`. The app creates that row automatically on login and on every
+admin action, so if saves ever fail with a "row-level security" error, the profile row is what to check.
+
 ## Known follow-ups
 
-- `middleware.ts` triggers a Next 16 deprecation notice ("use proxy instead") but works correctly; worth
-  migrating when Next's replacement API stabilizes.
 - Node 20 works but `@supabase/supabase-js` recommends Node 22+; upgrade when convenient.
