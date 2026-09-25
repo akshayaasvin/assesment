@@ -37,7 +37,20 @@ export interface ResultRow {
   violations: number;
 }
 
+function durationSeconds(r: ResultRow): number | null {
+  if (!r.startedAt || !r.submittedAt) return null;
+  return Math.max(0, Math.round((new Date(r.submittedAt).getTime() - new Date(r.startedAt).getTime()) / 1000));
+}
+
+function formatDuration(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+
 function toExportRow(r: ResultRow): ResultExportRow {
+  const seconds = durationSeconds(r);
   return {
     Name: r.name,
     Email: r.email,
@@ -49,6 +62,7 @@ function toExportRow(r: ResultRow): ResultExportRow {
     Assessment: r.assessment,
     "Started At": r.startedAt ?? "",
     "Submitted At": r.submittedAt ?? "",
+    "Time Taken (min)": seconds === null ? "" : Math.round((seconds / 60) * 10) / 10,
     Score: r.score,
     "Total Marks": r.totalMarks,
     Percentage: r.percentage,
@@ -133,6 +147,7 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
                 <TableHead>Score</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Violations</TableHead>
+                <TableHead>Time taken</TableHead>
                 <TableHead>Submitted</TableHead>
               </TableRow>
             </TableHeader>
@@ -152,6 +167,7 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
                     <AttemptStatusBadge status={r.status} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.violations}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{formatDuration(durationSeconds(r))}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {r.submittedAt ? new Date(r.submittedAt).toLocaleString() : "—"}
                   </TableCell>

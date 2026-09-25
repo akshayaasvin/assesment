@@ -25,15 +25,21 @@ interface ResultAttemptRow {
 export default async function ResultsPage() {
   const supabase = await createClient();
 
-  const [{ data: attempts }, { data: violations }] = await Promise.all([
+  const [{ data: attempts, error }, { data: violations, error: violationsError }] = await Promise.all([
     supabase
       .from("attempts")
       .select(
-        "id, started_at, submitted_at, score, total_marks, percentage, status, candidates(name, email, phone, college, district, department), assessments(title, roles(label))"
+        "id, started_at, submitted_at, score, total_marks, percentage, status, candidates!attempts_candidate_id_fkey(name, email, phone, college, district, department), assessments(title, roles(label))"
       )
-      .order("submitted_at", { ascending: false, nullsFirst: false }) as unknown as Promise<{ data: ResultAttemptRow[] | null }>,
+      .order("submitted_at", { ascending: false, nullsFirst: false }) as unknown as Promise<{
+      data: ResultAttemptRow[] | null;
+      error: { message: string } | null;
+    }>,
     supabase.from("violations").select("attempt_id"),
   ]);
+  // A failed query must not look like "No results match your filters".
+  if (error) throw new Error(`Could not load results: ${error.message}`);
+  if (violationsError) throw new Error(`Could not load violations: ${violationsError.message}`);
 
   const violationCounts = new Map<string, number>();
   for (const v of violations ?? []) {

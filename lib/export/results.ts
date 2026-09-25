@@ -11,6 +11,7 @@ export interface ResultExportRow {
   Assessment: string;
   "Started At": string;
   "Submitted At": string;
+  "Time Taken (min)": number | "";
   Score: number;
   "Total Marks": number;
   "Percentage": number;

@@ -5,7 +5,14 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AttemptStatusBadge } from "@/components/shared/status-badge";
-import type { AttemptStatus } from "@/types/database";
+import { Badge } from "@/components/ui/badge";
+import type { AptitudeStatus, AttemptStatus } from "@/types/database";
+
+const ELIGIBILITY: Record<AptitudeStatus, { label: string; className: string }> = {
+  pending: { label: "Aptitude pending", className: "text-muted-foreground" },
+  eligible: { label: "Eligible", className: "bg-success/15 text-success border-success/30" },
+  not_eligible: { label: "Not eligible", className: "bg-destructive/10 text-destructive border-destructive/30" },
+};
 
 interface CandidateRow {
   id: string;
@@ -15,15 +22,22 @@ interface CandidateRow {
   college: string | null;
   district: string | null;
   department: string | null;
+  aptitude_status: AptitudeStatus;
+  aptitude_percentage: number | null;
+  roles: { label: string } | null;
   attempts: { status: AttemptStatus; percentage: number; assessments: { title: string } | null }[];
 }
 
 export default async function CandidatesPage() {
   const supabase = await createClient();
-  const { data: candidates } = (await supabase
+  const { data: candidates, error } = (await supabase
     .from("candidates")
-    .select("id, name, email, phone, college, district, department, attempts(status, percentage, assessments(title))")
-    .order("created_at", { ascending: false })) as { data: CandidateRow[] | null };
+    .select(
+      "id, name, email, phone, college, district, department, aptitude_status, aptitude_percentage, roles(label), attempts!attempts_candidate_id_fkey(status, percentage, assessments(title))"
+    )
+    .order("created_at", { ascending: false })) as { data: CandidateRow[] | null; error: { message: string } | null };
+  // A failed query must not look like "No candidates yet".
+  if (error) throw new Error(`Could not load candidates: ${error.message}`);
 
   return (
     <div>
@@ -42,6 +56,7 @@ export default async function CandidatesPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Contact</TableHead>
                   <TableHead>College / District</TableHead>
+                  <TableHead>Eligibility / Role</TableHead>
                   <TableHead>Attempts</TableHead>
                 </TableRow>
               </TableHeader>
@@ -56,6 +71,13 @@ export default async function CandidatesPage() {
                     <TableCell className="text-sm text-muted-foreground">
                       <div>{c.college}</div>
                       <div>{c.district}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <Badge variant="outline" className={ELIGIBILITY[c.aptitude_status].className}>
+                        {ELIGIBILITY[c.aptitude_status].label}
+                        {c.aptitude_percentage !== null && ` · ${c.aptitude_percentage}%`}
+                      </Badge>
+                      <div className="mt-1 text-muted-foreground">{c.roles?.label ?? "No role selected"}</div>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1.5">
