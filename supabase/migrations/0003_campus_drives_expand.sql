@@ -62,6 +62,8 @@ alter table candidates
   add column if not exists disqualified_at timestamptz,
   add column if not exists disqualified_by uuid references profiles (id) on delete set null,
   add column if not exists high_risk boolean not null default false,
+  add column if not exists auth_user_id uuid unique references auth.users (id) on delete set null, -- anonymous sign-in; RLS keys on this
+  add column if not exists last_seen_at timestamptz,        -- updated by the 10 s sync; "offline" after 30 s
   add column if not exists email_normalized text generated always as (lower(btrim(email))) stored,
   add column if not exists phone_normalized text generated always as (right(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 10)) stored;
 
@@ -145,15 +147,50 @@ create table if not exists announcements (
 create index if not exists idx_announcements_drive on announcements (drive_id, created_at desc);
 
 -- =========================================================
+-- 5b. Admin -> candidate requests, delivered by the candidate's 10 s sync
+--     (no Realtime): spot-check photo, private warning, live-view invite.
+-- =========================================================
+create table if not exists candidate_requests (
+  id uuid primary key default gen_random_uuid(),
+  candidate_id uuid not null references candidates (id) on delete cascade,
+  type text not null check (type in ('snapshot', 'warning', 'live_view')),
+  payload jsonb,                                            -- warning text / audio path, live-view session id
+  created_by uuid references profiles (id) on delete set null,
+  created_at timestamptz not null default now(),
+  delivered_at timestamptz,
+  fulfilled_at timestamptz,
+  result_path text                                          -- spot-check photo in 'proctor-snapshots'
+);
+create index if not exists idx_candidate_requests_pending on candidate_requests (candidate_id) where delivered_at is null;
+
+-- WebRTC signalling for ONE on-demand live view, polled by both ends (no Realtime).
+create table if not exists webrtc_signals (
+  id bigint generated always as identity primary key,
+  session_id uuid not null,
+  candidate_id uuid not null references candidates (id) on delete cascade,
+  sender text not null check (sender in ('admin', 'candidate')),
+  kind text not null check (kind in ('offer', 'answer', 'ice', 'end')),
+  payload jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_webrtc_signals_session on webrtc_signals (session_id, id);
+
+-- =========================================================
 -- 6. RLS: admin-only, like every other table. Candidates never query
 --    these tables directly; server routes act for them.
 -- =========================================================
 alter table drives enable row level security;
 alter table drive_role_assessments enable row level security;
 alter table announcements enable row level security;
+alter table candidate_requests enable row level security;
+alter table webrtc_signals enable row level security;
 create policy "drives_admin_all" on drives for all using (is_admin()) with check (is_admin());
 create policy "drive_role_assessments_admin_all" on drive_role_assessments for all using (is_admin()) with check (is_admin());
 create policy "announcements_admin_all" on announcements for all using (is_admin()) with check (is_admin());
+create policy "candidate_requests_admin_all" on candidate_requests for all using (is_admin()) with check (is_admin());
+create policy "webrtc_signals_admin_all" on webrtc_signals for all using (is_admin()) with check (is_admin());
+-- Candidate-side access (own rows only, via auth.uid()) and the candidate
+-- sync/submit RPCs are added in 0005 alongside the code that uses them.
 -- proctor_events keeps the violations_admin_all policy it had before the rename.
 
 -- =========================================================
@@ -184,8 +221,8 @@ update proctor_events p
 -- 8. Storage buckets (private; the app serves signed URLs)
 -- =========================================================
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values
-  ('resumes', 'resumes', false, 2097152, array['application/pdf']),
-  ('proctor-snapshots', 'proctor-snapshots', false, 262144, array['image/jpeg']),
+  ('resumes', 'resumes', false, 1048576, array['application/pdf']),           -- 1 MB, optional
+  ('proctor-snapshots', 'proctor-snapshots', false, 51200, array['image/jpeg']), -- ~320px JPEG, target <= 20 KB
   ('announcements', 'announcements', false, 1048576, array['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg'])
 on conflict (id) do nothing;
 
