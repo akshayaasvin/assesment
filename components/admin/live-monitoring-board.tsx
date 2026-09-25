@@ -12,6 +12,7 @@ import { ConfirmAction } from "@/components/shared/confirm-action";
 import { AttemptStatusBadge } from "@/components/shared/status-badge";
 import { createClient } from "@/lib/supabase/browser";
 import { disqualifyAttempt } from "@/lib/actions/results";
+import { useIsClient } from "@/hooks/use-is-client";
 import type { ViolationType } from "@/types/database";
 
 export interface LiveAttempt {
@@ -90,6 +91,10 @@ export function LiveMonitoringBoard({ initial, recent }: { initial: LiveAttempt[
   const router = useRouter();
   const attempts = initial;
   const [, forceTick] = useState(0);
+  // Relative times and local clock times depend on the browser's clock/zone,
+  // so they render after hydration (placeholder on the server).
+  const isClient = useIsClient();
+  const when = (text: () => string) => (isClient ? text() : "…");
 
   // Re-render every 5s so "last seen" and "time left" stay current between fetches.
   useEffect(() => {
@@ -132,7 +137,7 @@ export function LiveMonitoringBoard({ initial, recent }: { initial: LiveAttempt[
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {attempts.map((a) => (
-              <LiveAttemptCard key={a.id} attempt={a} onChanged={() => router.refresh()} />
+              <LiveAttemptCard key={a.id} attempt={a} when={when} onChanged={() => router.refresh()} />
             ))}
           </div>
         )}
@@ -177,7 +182,7 @@ export function LiveMonitoringBoard({ initial, recent }: { initial: LiveAttempt[
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{r.warningsCount}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{formatDuration(r.startedAt, r.submittedAt)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{timeAgo(r.submittedAt)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{when(() => timeAgo(r.submittedAt))}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -190,7 +195,15 @@ export function LiveMonitoringBoard({ initial, recent }: { initial: LiveAttempt[
   );
 }
 
-function LiveAttemptCard({ attempt: a, onChanged }: { attempt: LiveAttempt; onChanged: () => void }) {
+function LiveAttemptCard({
+  attempt: a,
+  when,
+  onChanged,
+}: {
+  attempt: LiveAttempt;
+  when: (text: () => string) => string;
+  onChanged: () => void;
+}) {
   const flags = Object.entries(a.flags) as [ViolationType, number][];
 
   return (
@@ -216,15 +229,15 @@ function LiveAttemptCard({ attempt: a, onChanged }: { attempt: LiveAttempt; onCh
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <Clock3 className="h-3 w-3" /> Started {formatClock(a.startedAt)}
+            <Clock3 className="h-3 w-3" /> Started {when(() => formatClock(a.startedAt))}
           </span>
           <span className="flex items-center gap-1" title="Overall time budget minus time since start">
-            <Timer className="h-3 w-3" /> {timeLeft(a)}
+            <Timer className="h-3 w-3" /> {when(() => timeLeft(a))}
           </span>
           <span className="flex items-center gap-1">
             <ListChecks className="h-3 w-3" /> {a.answeredCount}/{a.totalQuestions} answered
           </span>
-          <span className="flex items-center gap-1">Seen {timeAgo(a.lastSeenAt)}</span>
+          <span className="flex items-center gap-1">Seen {when(() => timeAgo(a.lastSeenAt))}</span>
         </div>
 
         {flags.length > 0 && (

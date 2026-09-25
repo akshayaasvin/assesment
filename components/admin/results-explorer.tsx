@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/shared/empty-state";
 import { AttemptStatusBadge } from "@/components/shared/status-badge";
 import { BarChart3 } from "lucide-react";
+import { useIsClient } from "@/hooks/use-is-client";
 import { downloadResultsCsv, downloadResultsXlsx, type ResultExportRow } from "@/lib/export/results";
 import type { AttemptStatus } from "@/types/database";
 
@@ -75,6 +76,8 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
   const [assessment, setAssessment] = useState<string>("all");
+  // Submitted times are shown in the admin's own time zone, so only after hydration.
+  const isClient = useIsClient();
 
   const assessments = useMemo(() => [...new Set(rows.map((r) => r.assessment))], [rows]);
 
@@ -169,7 +172,7 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
                   <TableCell className="text-sm text-muted-foreground">{r.violations}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{formatDuration(durationSeconds(r))}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {r.submittedAt ? new Date(r.submittedAt).toLocaleString() : "—"}
+                    {r.submittedAt ? (isClient ? new Date(r.submittedAt).toLocaleString() : "…") : "—"}
                   </TableCell>
                 </TableRow>
               ))}
