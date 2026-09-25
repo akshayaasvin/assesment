@@ -1,8 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, LogOut, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -20,7 +19,9 @@ export function AdminTopbar({ email }: { email: string }) {
 
   async function handleLogout() {
     const supabase = createClient();
-    await supabase.auth.signOut();
+    // Sign out this browser only. The default ("global") also revokes the
+    // admin's sessions on every other device.
+    await supabase.auth.signOut({ scope: "local" });
     router.replace("/admin/login");
     router.refresh();
   }
@@ -29,14 +30,10 @@ export function AdminTopbar({ email }: { email: string }) {
 
   return (
     <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-background px-4 sm:px-6">
-      <div className="relative hidden max-w-sm flex-1 sm:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search candidates, assessments..." className="pl-9" />
-      </div>
+      {/* Global search and notifications aren't implemented yet, so they're not
+          shown (they were inert placeholders). Keeps the account menu right-aligned. */}
+      <div className="flex-1" />
       <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="text-muted-foreground">
-          <Bell className="h-4.5 w-4.5" />
-        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="gap-2 px-2">

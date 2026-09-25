@@ -68,6 +68,9 @@ export function QuestionBankTable({
             title="Delete selected questions?"
             description={`${selected.size} question(s) will be permanently removed from the question bank.`}
             confirmLabel="Delete"
+            pendingLabel="Deleting..."
+            successMessage="Questions deleted."
+            errorMessage="Unable to delete questions."
             destructive
             onConfirm={async () => {
               const result = await bulkDeleteQuestions([...selected]);
@@ -128,8 +131,11 @@ export function QuestionBankTable({
                       </Button>
                     }
                     title="Delete this question?"
-                    description="This cannot be undone."
+                    description="It is removed from the question bank and from any fixed-question assessment section. This cannot be undone."
                     confirmLabel="Delete"
+                    pendingLabel="Deleting..."
+                    successMessage="Question deleted."
+                    errorMessage="Unable to delete question."
                     destructive
                     onConfirm={() =>
                       deleteQuestion(q.id).then((result) => {
