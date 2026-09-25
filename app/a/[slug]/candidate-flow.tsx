@@ -6,6 +6,7 @@ import { SystemCheck } from "@/components/candidate/system-check";
 import { ExamRunner } from "@/components/candidate/exam-runner";
 import { FinishScreen } from "@/components/candidate/finish-screen";
 import { requestFullscreen } from "@/hooks/use-fullscreen";
+import { postJson } from "@/lib/fetch-json";
 import type { RuntimeAssessment } from "@/types/domain";
 
 interface AssessmentPublicInfo {
@@ -29,15 +30,10 @@ export function CandidateFlow({ slug, info }: { slug: string; info: AssessmentPu
   });
 
   async function handleRegister(details: CandidateDetails): Promise<string | void> {
-    const res = await fetch(`/api/assessments/${slug}/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(details),
-    });
-    const data = await res.json();
-    if (!res.ok) return data.error ?? "Could not register. Please try again.";
+    const result = await postJson<{ attemptId: string; attemptToken: string }>(`/api/assessments/${slug}/register`, details);
+    if (!result.success) return result.error;
 
-    setAttempt({ attemptId: data.attemptId, attemptToken: data.attemptToken });
+    setAttempt({ attemptId: result.data.attemptId, attemptToken: result.data.attemptToken });
     setStep("check");
   }
 
@@ -45,17 +41,15 @@ export function CandidateFlow({ slug, info }: { slug: string; info: AssessmentPu
     if (!attempt) return;
     if (info.fullscreenRequired) requestFullscreen();
 
-    const res = await fetch(`/api/attempts/${attempt.attemptId}/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ attemptToken: attempt.attemptToken }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error ?? "Could not start your attempt.");
+    const result = await postJson<RuntimeAssessment & { savedAnswers: Record<string, string | null> }>(
+      `/api/attempts/${attempt.attemptId}/start`,
+      { attemptToken: attempt.attemptToken }
+    );
+    if (!result.success) {
+      alert(result.error);
       return;
     }
-    setRuntime(data);
+    setRuntime(result.data);
     setStep("exam");
   }
 

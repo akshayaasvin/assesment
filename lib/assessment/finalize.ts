@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, AssessmentEventType } from "@/types/database";
 import { gradeAttempt } from "./scoring";
+import { decideEligibility } from "@/lib/portal/access";
 
 type AdminClient = SupabaseClient<Database>;
 
@@ -76,6 +77,15 @@ export async function finalizeAttempt(
     assessment_id: attempt.assessment_id,
     type: eventType,
   });
+
+  // For aptitude attempts, persist the candidate's eligibility right away.
+  // Non-fatal: the score is already saved, and the portal re-derives a missing
+  // decision from the finished attempt on the candidate's next page load.
+  try {
+    await decideEligibility(admin, attemptId);
+  } catch (e) {
+    console.error("[assessment] Could not record eligibility for attempt", attemptId, e);
+  }
 
   return graded;
 }

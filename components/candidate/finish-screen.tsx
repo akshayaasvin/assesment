@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -9,7 +10,10 @@ export function FinishScreen({
   score,
   totalMarks,
   percentage,
+  action,
 }: {
+  /** Optional call-to-action under the message, e.g. "Back to dashboard". */
+  action?: ReactNode;
   disqualified: boolean;
   resultVisible: boolean;
   score?: number;
@@ -43,6 +47,7 @@ export function FinishScreen({
               )}
             </>
           )}
+          {action && <div className="mt-4 w-full">{action}</div>}
           <p className="mt-4 text-xs font-medium uppercase tracking-wide text-primary">Assistlana</p>
         </CardContent>
       </Card>

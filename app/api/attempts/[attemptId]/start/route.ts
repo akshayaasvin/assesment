@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildRuntimeSection } from "@/lib/assessment/section-resolver";
+import { checkAssessmentAccess } from "@/lib/portal/access";
 import type { RuntimeAssessment } from "@/types/domain";
 
 const bodySchema = z.object({ attemptToken: z.string().min(1) });
@@ -22,6 +23,20 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
 
   const { data: assessment } = await admin.from("assessments").select("*").eq("id", attempt.assessment_id).single();
   if (!assessment) return NextResponse.json({ error: "Assessment not found." }, { status: 404 });
+
+  // Re-check the eligibility/role gate before the first start (the candidate's
+  // role or the assessment's schedule may have changed since registration).
+  // An exam already in progress can always be resumed.
+  if (attempt.status === "not_started") {
+    const { data: candidate } = await admin
+      .from("candidates")
+      .select("id, aptitude_status, role_id")
+      .eq("id", attempt.candidate_id)
+      .single();
+    if (!candidate) return NextResponse.json({ error: "Candidate not found." }, { status: 404 });
+    const denied = await checkAssessmentAccess(admin, candidate, assessment);
+    if (denied) return NextResponse.json({ error: denied }, { status: 403 });
+  }
 
   const { data: sections } = await admin
     .from("assessment_sections")
