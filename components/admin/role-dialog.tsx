@@ -29,16 +29,23 @@ export function RoleDialog({
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(formData: FormData) {
+    if (pending) return;
     setPending(true);
-    const result = role ? await updateRole(role.id, formData) : await createRole(formData);
-    setPending(false);
-    if (result?.error) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = role ? await updateRole(role.id, formData) : await createRole(formData);
+      if (result?.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(role ? "Role updated." : "Role created.");
+      setOpen(false);
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      toast.error(role ? "Unable to save role." : "Unable to create role. Please try again.");
+    } finally {
+      setPending(false);
     }
-    toast.success(role ? "Role updated." : "Role created.");
-    setOpen(false);
-    router.refresh();
   }
 
   return (

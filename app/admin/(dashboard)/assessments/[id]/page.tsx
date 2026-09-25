@@ -34,6 +34,7 @@ export default async function EditAssessmentPage({ params }: { params: Promise<{
         fixedQuestionIds = (data ?? []).map((r) => r.question_id);
       }
       return {
+        id: s.id,
         title: s.title,
         durationMinutes: s.duration_minutes,
         randomizeQuestions: s.randomize_questions,
@@ -63,12 +64,17 @@ export default async function EditAssessmentPage({ params }: { params: Promise<{
         }
       />
       <AssessmentForm
+        // Remount after each save so form state picks up fresh DB values
+        // (e.g. ids of newly created sections).
+        key={assessment.updated_at}
         assessmentId={assessment.id}
         roles={roles ?? []}
         categories={categories ?? []}
         questions={questions ?? []}
         initial={{
           title: assessment.title,
+          description: assessment.description,
+          kind: assessment.kind,
           roleId: assessment.role_id,
           startAt: assessment.start_at,
           endAt: assessment.end_at,

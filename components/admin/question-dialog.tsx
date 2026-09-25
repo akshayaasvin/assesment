@@ -82,6 +82,20 @@ export function QuestionDialog({
       return;
     }
 
+    // correctIndex points into `options`; blank options are dropped above, so
+    // re-map it onto the cleaned list.
+    const correctText = options[correctIndex]?.trim();
+    const cleanCorrectIndex = correctText ? cleanOptions.indexOf(correctText) : -1;
+    if (cleanCorrectIndex < 0) {
+      toast.error("Select the correct option.");
+      return;
+    }
+    if (!text) {
+      toast.error("Write the question text.");
+      return;
+    }
+    if (pending) return;
+
     setPending(true);
     const input = {
       text,
@@ -89,18 +103,28 @@ export function QuestionDialog({
       difficulty,
       marks,
       options: cleanOptions,
-      correctIndex,
+      correctIndex: cleanCorrectIndex,
     };
-    const result = question ? await updateQuestion(question.id, input) : await createQuestion(input);
-    setPending(false);
-
-    if (result?.error) {
-      toast.error(result.error);
-      return;
+    try {
+      const result = question ? await updateQuestion(question.id, input) : await createQuestion(input);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(question ? "Question updated." : "Question added.");
+      setOpen(false);
+      if (!question) {
+        // Fresh form for the next "Add question".
+        setOptions(["", ""]);
+        setCorrectIndex(0);
+      }
+      router.refresh();
+    } catch (e) {
+      console.error(e);
+      toast.error(question ? "Unable to save question." : "Unable to create question. Please try again.");
+    } finally {
+      setPending(false);
     }
-    toast.success(question ? "Question updated." : "Question added.");
-    setOpen(false);
-    router.refresh();
   }
 
   return (

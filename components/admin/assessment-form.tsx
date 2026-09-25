@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -21,6 +22,7 @@ import {
 import { createAssessment, updateAssessment, type AssessmentFormInput } from "@/lib/actions/assessments";
 
 interface SectionState {
+  id?: string;
   title: string;
   durationMinutes: number;
   randomizeQuestions: boolean;
@@ -56,6 +58,8 @@ export function AssessmentForm({
   questions: { id: string; text: string; category_id: string | null }[];
   initial?: {
     title: string;
+    description: string | null;
+    kind: "aptitude" | "role";
     roleId: string | null;
     startAt: string | null;
     endAt: string | null;
@@ -74,8 +78,13 @@ export function AssessmentForm({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  // Stays true after a successful create while we navigate away, so a second
+  // click can't insert a duplicate assessment.
+  const [created, setCreated] = useState(false);
 
   const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [kind, setKind] = useState<"aptitude" | "role">(initial?.kind ?? "role");
   const [roleId, setRoleId] = useState(initial?.roleId ?? "");
   const [startAt, setStartAt] = useState(initial?.startAt?.slice(0, 16) ?? "");
   const [endAt, setEndAt] = useState(initial?.endAt?.slice(0, 16) ?? "");
@@ -94,14 +103,31 @@ export function AssessmentForm({
     setSections((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
+  function validate(): string | null {
+    if (!title.trim()) return "Give the assessment a title.";
+    if (kind === "role" && !roleId) return "Choose the role this assessment is for (or set its type to Aptitude).";
+    if (startAt && endAt && new Date(endAt) <= new Date(startAt)) return "End time must be after the start time.";
+    for (const s of sections) {
+      if (!s.title.trim()) return "Every section needs a title.";
+      if (!(s.durationMinutes >= 1)) return `"${s.title}": duration must be at least 1 minute.`;
+      if (s.sourceType === "fixed" && s.fixedQuestionIds.length === 0) return `"${s.title}": pick at least one question.`;
+      if (s.sourceType === "random_pool" && !(s.questionCount >= 1)) return `"${s.title}": number of questions must be at least 1.`;
+    }
+    return null;
+  }
+
   function handleSubmit() {
-    if (!title.trim()) {
-      toast.error("Give the assessment a title.");
+    if (isPending || created) return;
+    const validationError = validate();
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
     const input: AssessmentFormInput = {
       title,
-      roleId: roleId || null,
+      description: description.trim() || null,
+      kind,
+      roleId: kind === "role" ? roleId || null : null,
       startAt: startAt ? new Date(startAt).toISOString() : null,
       endAt: endAt ? new Date(endAt).toISOString() : null,
       maxWarnings,
@@ -117,13 +143,25 @@ export function AssessmentForm({
     };
 
     startTransition(async () => {
-      const result = assessmentId ? await updateAssessment(assessmentId, input) : await createAssessment(input);
-      if (result?.error) {
-        toast.error(result.error);
-        return;
+      try {
+        const result = assessmentId ? await updateAssessment(assessmentId, input) : await createAssessment(input);
+        if (!result.success) {
+          toast.error(result.error);
+          return;
+        }
+        if (assessmentId) {
+          toast.success("Changes saved.");
+          router.refresh();
+        } else {
+          setCreated(true);
+          toast.success("Assessment created.");
+          router.push(`/admin/assessments/${result.id}`);
+        }
+      } catch (e) {
+        // Network failure or an invalid server response - never report success.
+        console.error(e);
+        toast.error(assessmentId ? "Unable to save changes." : "Unable to create assessment. Please try again.");
       }
-      toast.success(assessmentId ? "Assessment updated." : "Assessment created.");
-      if (assessmentId) router.refresh();
     });
   }
 
@@ -138,11 +176,37 @@ export function AssessmentForm({
             <Label>Title</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Full Stack Developer Assessment" />
           </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label>Description (shown to candidates)</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="What this assessment covers and what candidates should expect."
+              rows={3}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Type</Label>
+            <Select value={kind} onValueChange={(v) => setKind(v as "aptitude" | "role")}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="aptitude">Aptitude (first step for every candidate)</SelectItem>
+                <SelectItem value="role">Role assessment (eligible candidates of one role)</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {kind === "aptitude"
+                ? "Candidates scoring at or above the passing percentage become eligible for role assessments."
+                : "Shown only to candidates who passed Aptitude and selected this role, once it's live."}
+            </p>
+          </div>
           <div className="space-y-1.5">
             <Label>Role</Label>
-            <Select value={roleId} onValueChange={setRoleId}>
+            <Select value={kind === "aptitude" ? "" : roleId} onValueChange={setRoleId} disabled={kind === "aptitude"}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="No role" />
+                <SelectValue placeholder={kind === "aptitude" ? "All candidates" : "Choose a role"} />
               </SelectTrigger>
               <SelectContent>
                 {roles.map((r) => (
@@ -209,8 +273,8 @@ export function AssessmentForm({
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSubmit} disabled={isPending} size="lg">
-          {isPending ? "Saving..." : assessmentId ? "Save changes" : "Create assessment"}
+        <Button onClick={handleSubmit} disabled={isPending || created} size="lg">
+          {created ? "Saved" : isPending ? "Saving..." : assessmentId ? "Save changes" : "Create assessment"}
         </Button>
       </div>
     </div>

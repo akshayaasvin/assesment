@@ -42,9 +42,14 @@ export function DefaultSettingsForm({ initial }: { initial: DefaultSettingsInput
             disabled={isPending}
             onClick={() =>
               startTransition(async () => {
-                const result = await updateDefaultSettings(state);
-                if (result?.error) toast.error(result.error);
-                else toast.success("Default settings saved.");
+                try {
+                  const result = await updateDefaultSettings(state);
+                  if (result?.error) toast.error(result.error);
+                  else toast.success("Default settings saved.");
+                } catch (e) {
+                  console.error(e);
+                  toast.error("Unable to save settings.");
+                }
               })
             }
           >

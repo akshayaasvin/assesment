@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { MoreHorizontal, Play, Pause, Square, Copy, Pencil, Trash2, RotateCcw } from "lucide-react";
@@ -19,13 +19,19 @@ import type { AssessmentStatus } from "@/types/database";
 
 export function AssessmentActionsMenu({ id, status }: { id: string; status: AssessmentStatus }) {
   const router = useRouter();
-  const [, startTransition] = useTransition();
+  const pathname = usePathname();
+  const [isPending, startTransition] = useTransition();
 
   function runStatus(next: AssessmentStatus, message: string) {
     startTransition(async () => {
-      const result = await setAssessmentStatus(id, next);
-      if (result?.error) toast.error(result.error);
-      else toast.success(message);
+      try {
+        const result = await setAssessmentStatus(id, next);
+        if (result.error) toast.error(result.error);
+        else toast.success(message);
+      } catch (e) {
+        console.error(e);
+        toast.error("Unable to change the assessment status.");
+      }
       router.refresh();
     });
   }
@@ -33,7 +39,7 @@ export function AssessmentActionsMenu({ id, status }: { id: string; status: Asse
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon">
+        <Button variant="ghost" size="icon" disabled={isPending} aria-label="Assessment actions">
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -74,11 +80,16 @@ export function AssessmentActionsMenu({ id, status }: { id: string; status: Asse
         <DropdownMenuItem
           onClick={() =>
             startTransition(async () => {
-              const result = await duplicateAssessment(id);
-              if (result?.error) toast.error(result.error);
-              else {
-                toast.success("Assessment duplicated.");
-                router.refresh();
+              try {
+                const result = await duplicateAssessment(id);
+                if (result.error) toast.error(result.error);
+                else {
+                  toast.success("Assessment duplicated.");
+                  router.refresh();
+                }
+              } catch (e) {
+                console.error(e);
+                toast.error("Unable to duplicate assessment.");
               }
             })
           }
@@ -91,16 +102,22 @@ export function AssessmentActionsMenu({ id, status }: { id: string; status: Asse
               <Trash2 className="h-4 w-4" /> Delete
             </DropdownMenuItem>
           }
-          title="Delete this assessment?"
-          description="All sections and configuration will be removed. Candidate attempts already recorded are kept for audit history."
+          title="Are you sure you want to delete this assessment?"
+          description="Its sections, question selections and any candidate attempts and results for it will be permanently deleted. Questions in the question bank are kept."
           confirmLabel="Delete"
+          pendingLabel="Deleting..."
+          successMessage="Assessment deleted."
+          errorMessage="Unable to delete assessment."
           destructive
-          onConfirm={() =>
-            deleteAssessment(id).then((result) => {
-              if (!result?.error) router.refresh();
-              return result;
-            })
-          }
+          onConfirm={async () => {
+            const result = await deleteAssessment(id);
+            if (!result.error) {
+              // Deleted from its own detail page - that page no longer exists.
+              if (pathname !== "/admin/assessments") router.push("/admin/assessments");
+              router.refresh();
+            }
+            return result;
+          }}
         />
       </DropdownMenuContent>
     </DropdownMenu>

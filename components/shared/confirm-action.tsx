@@ -19,6 +19,9 @@ export function ConfirmAction({
   title,
   description,
   confirmLabel = "Continue",
+  pendingLabel = "Working...",
+  successMessage,
+  errorMessage = "Something went wrong. Please try again.",
   destructive = false,
   onConfirm,
 }: {
@@ -26,8 +29,13 @@ export function ConfirmAction({
   title: string;
   description: string;
   confirmLabel?: string;
+  pendingLabel?: string;
+  /** Toasted only once onConfirm resolves without an error. */
+  successMessage?: string;
+  /** Shown if onConfirm throws (network failure, bad server response). */
+  errorMessage?: string;
   destructive?: boolean;
-  onConfirm: () => Promise<{ error?: string } | void>;
+  onConfirm: () => Promise<{ error?: string } | object | void>;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -48,13 +56,23 @@ export function ConfirmAction({
             onClick={(e) => {
               e.preventDefault();
               startTransition(async () => {
-                const result = await onConfirm();
-                if (result?.error) toast.error(result.error);
-                setOpen(false);
+                try {
+                  const result = await onConfirm();
+                  if (result && "error" in result && result.error) {
+                    // Keep the dialog open so the admin can retry or cancel.
+                    toast.error(result.error);
+                    return;
+                  }
+                  if (successMessage) toast.success(successMessage);
+                  setOpen(false);
+                } catch (err) {
+                  console.error(err);
+                  toast.error(errorMessage);
+                }
               });
             }}
           >
-            {isPending ? "Working..." : confirmLabel}
+            {isPending ? pendingLabel : confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

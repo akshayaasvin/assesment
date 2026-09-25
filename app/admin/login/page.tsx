@@ -40,25 +40,32 @@ function AdminLoginForm() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (signInError || !data.user) {
-      setError("Invalid email or password.");
+      if (signInError || !data.user) {
+        setError("Invalid email or password.");
+        return;
+      }
+
+      const { authorized, error: authError } = await verifyAdminSession();
+      if (!authorized) {
+        await supabase.auth.signOut();
+        setError(authError ?? "That account does not have admin access.");
+        return;
+      }
+
+      router.replace(safeNextPath(searchParams.get("next")));
+      router.refresh();
+    } catch {
+      // A network blip, a browser extension interfering with the request, or
+      // an unexpected response from Supabase - whatever it was, the button
+      // must not stay stuck on "Signing in..." forever.
+      setError("Something went wrong signing in. Please try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { authorized } = await verifyAdminSession();
-    if (!authorized) {
-      await supabase.auth.signOut();
-      setError("That account does not have admin access.");
-      setLoading(false);
-      return;
-    }
-
-    router.replace(safeNextPath(searchParams.get("next")));
-    router.refresh();
   }
 
   return (

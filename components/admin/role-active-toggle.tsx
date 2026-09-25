@@ -15,10 +15,16 @@ export function RoleActiveToggle({ id, isActive }: { id: string; isActive: boole
       onCheckedChange={(next) => {
         setChecked(next);
         startTransition(async () => {
-          const result = await toggleRoleActive(id, next);
-          if (result?.error) {
+          try {
+            const result = await toggleRoleActive(id, next);
+            if (result?.error) {
+              setChecked(!next);
+              toast.error(result.error);
+            }
+          } catch (e) {
+            console.error(e);
             setChecked(!next);
-            toast.error(result.error);
+            toast.error("Unable to update role.");
           }
         });
       }}

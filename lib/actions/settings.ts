@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require-admin";
+import { NOT_FOUND_OR_FORBIDDEN, toUserError } from "@/lib/db-errors";
 
 export interface DefaultSettingsInput {
   maxWarnings: number;
@@ -15,8 +16,10 @@ export interface DefaultSettingsInput {
 }
 
 export async function updateDefaultSettings(input: DefaultSettingsInput) {
-  const supabase = await createClient();
-  const { error } = await supabase
+  const auth = await requireAdmin();
+  if (!auth.ok) return { error: auth.error };
+
+  const { data: updated, error } = await auth.supabase
     .from("default_settings")
     .update({
       max_warnings: input.maxWarnings,
@@ -28,8 +31,10 @@ export async function updateDefaultSettings(input: DefaultSettingsInput) {
       auto_submit: input.autoSubmit,
       result_visible_to_candidate: input.resultVisibleToCandidate,
     })
-    .eq("id", 1);
-  if (error) return { error: error.message };
+    .eq("id", 1)
+    .select("id");
+  if (error) return { error: toUserError(error, "Unable to save settings.") };
+  if (!updated?.length) return { error: NOT_FOUND_OR_FORBIDDEN };
 
   revalidatePath("/admin/settings");
   return { success: true };

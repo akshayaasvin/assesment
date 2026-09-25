@@ -57,12 +57,23 @@ export function ImportWizard() {
       return;
     }
     startTransition(async () => {
-      const result = await bulkImportQuestions(toImport);
+      let result: Awaited<ReturnType<typeof bulkImportQuestions>>;
+      try {
+        result = await bulkImportQuestions(toImport);
+      } catch (e) {
+        console.error(e);
+        toast.error("Unable to import questions. Please try again.");
+        return;
+      }
       if (result?.error) {
         toast.error(result.error);
         return;
       }
-      toast.success(`Imported ${result.imported} question(s).${result.skipped ? ` ${result.skipped} skipped.` : ""}`);
+      if (result.skipped) {
+        toast.warning(`Imported ${result.imported} question(s). ${result.skipped} could not be saved.`);
+      } else {
+        toast.success(`Imported ${result.imported} question(s).`);
+      }
       setRows([]);
       setErrors([]);
       setFileName(null);

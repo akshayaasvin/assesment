@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminUid } from "@/lib/auth/admin-uid";
+import { ensureAdminProfile } from "@/lib/auth/require-admin";
 import { AdminSidebar } from "@/components/admin/sidebar";
 import { AdminTopbar } from "@/components/admin/topbar";
 
@@ -13,13 +14,17 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   if (!user) redirect("/admin/login");
 
-  // Authoritative check - the middleware already confirms this (edge-safe),
-  // but every admin page re-verifies server-side before rendering anything,
-  // in case this layout is ever reached by a path the middleware doesn't cover.
+  // Authoritative check - the proxy already confirms this, but every admin
+  // page re-verifies server-side before rendering anything, in case this
+  // layout is ever reached by a path the proxy doesn't cover.
   if (!isAdminUid(user.id)) {
     await supabase.auth.signOut();
     redirect("/admin/login?error=unauthorized");
   }
+
+  // Self-heals a session that predates the admin profile row (RLS would
+  // otherwise hide all data and reject every save).
+  await ensureAdminProfile(user);
 
   return (
     <div className="flex min-h-screen bg-muted/30">
