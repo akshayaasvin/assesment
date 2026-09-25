@@ -11,13 +11,18 @@ export default async function EditAssessmentPage({ params }: { params: Promise<{
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: assessment }, { data: sections }, { data: roles }, { data: categories }, { data: questions }] =
+  const [{ data: assessment }, { data: sections }, { data: roles }, { data: categories }, { data: questions }, { count: inProgress }] =
     await Promise.all([
       supabase.from("assessments").select("*").eq("id", id).maybeSingle(),
       supabase.from("assessment_sections").select("*").eq("assessment_id", id).order("order_index"),
       supabase.from("roles").select("id, label").eq("is_active", true).order("label"),
       supabase.from("categories").select("id, name").order("name"),
       supabase.from("questions").select("id, text, category_id").order("created_at", { ascending: false }),
+      supabase
+        .from("attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("assessment_id", id)
+        .eq("status", "in_progress"),
     ]);
 
   if (!assessment) notFound();
@@ -34,6 +39,7 @@ export default async function EditAssessmentPage({ params }: { params: Promise<{
         fixedQuestionIds = (data ?? []).map((r) => r.question_id);
       }
       return {
+        id: s.id,
         title: s.title,
         durationMinutes: s.duration_minutes,
         randomizeQuestions: s.randomize_questions,
@@ -63,7 +69,14 @@ export default async function EditAssessmentPage({ params }: { params: Promise<{
         }
       />
       <AssessmentForm
+        // Remount after each save so the form picks up fresh section ids.
+        key={assessment.updated_at}
         assessmentId={assessment.id}
+        structureLockedReason={
+          inProgress
+            ? `Close the assessment to edit questions. ${inProgress} candidate${inProgress === 1 ? " is" : "s are"} taking it right now.`
+            : null
+        }
         roles={roles ?? []}
         categories={categories ?? []}
         questions={questions ?? []}

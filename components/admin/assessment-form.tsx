@@ -21,6 +21,7 @@ import {
 import { createAssessment, updateAssessment, type AssessmentFormInput } from "@/lib/actions/assessments";
 
 interface SectionState {
+  id?: string;
   title: string;
   durationMinutes: number;
   randomizeQuestions: boolean;
@@ -50,6 +51,7 @@ export function AssessmentForm({
   questions,
   initial,
   assessmentId,
+  structureLockedReason,
 }: {
   roles: { id: string; label: string }[];
   categories: { id: string; name: string }[];
@@ -71,6 +73,8 @@ export function AssessmentForm({
     sections: SectionState[];
   };
   assessmentId?: string;
+  /** Set while candidates are mid-exam: section/question edits are disabled with this message. */
+  structureLockedReason?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -190,11 +194,24 @@ export function AssessmentForm({
       <Card className="border-border/70">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Sections</CardTitle>
-          <Button type="button" variant="outline" size="sm" onClick={() => setSections((prev) => [...prev, emptySection()])}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={Boolean(structureLockedReason)}
+            onClick={() => setSections((prev) => [...prev, emptySection()])}
+          >
             <Plus className="h-4 w-4" /> Add section
           </Button>
         </CardHeader>
         <CardContent className="space-y-5">
+          {structureLockedReason && (
+            <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-foreground">
+              {structureLockedReason}
+            </p>
+          )}
+          {/* Title, schedule and proctoring rules stay editable; sections and questions don't. */}
+          <fieldset disabled={Boolean(structureLockedReason)} className="space-y-5 disabled:opacity-60">
           {sections.map((section, i) => (
             <SectionEditor
               key={i}
@@ -205,6 +222,7 @@ export function AssessmentForm({
               onRemove={sections.length > 1 ? () => setSections((prev) => prev.filter((_, idx) => idx !== i)) : undefined}
             />
           ))}
+          </fieldset>
         </CardContent>
       </Card>
 

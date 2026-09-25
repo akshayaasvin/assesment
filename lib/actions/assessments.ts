@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import type { AssessmentStatus } from "@/types/database";
 
 const sectionSchema = z.object({
+  // Present for sections loaded from the database; absent for new ones.
+  id: z.string().uuid().optional(),
   title: z.string().trim().min(1),
   durationMinutes: z.coerce.number().int().min(1),
   randomizeQuestions: z.boolean().default(true),
@@ -46,42 +48,170 @@ function slugify(title: string) {
   return `${base || "assessment"}-${suffix}`;
 }
 
-async function writeSections(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  assessmentId: string,
-  sections: AssessmentFormInput["sections"]
-) {
-  await supabase.from("assessment_sections").delete().eq("assessment_id", assessmentId);
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+interface SectionStructure {
+  id: string;
+  sourceType: string;
+  sourceCategoryId: string | null;
+  questionCount: number;
+  fixedQuestionIds: string[];
+}
+
+/**
+ * The parts of an assessment's sections that decide which questions a
+ * candidate gets. Changing these while candidates are mid-exam would change
+ * their test under them, so it's blocked (see checkSectionChanges).
+ */
+function structureKey(sections: SectionStructure[]) {
+  return JSON.stringify(
+    sections.map((s) => ({
+      id: s.id,
+      sourceType: s.sourceType,
+      sourceCategoryId: s.sourceType === "random_pool" ? s.sourceCategoryId : null,
+      questionCount: s.sourceType === "fixed" ? s.fixedQuestionIds.length : s.questionCount,
+      fixedQuestionIds: s.sourceType === "fixed" ? s.fixedQuestionIds : [],
+    }))
+  );
+}
+
+async function loadStructure(supabase: Supabase, assessmentId: string): Promise<SectionStructure[]> {
+  const { data: sections, error } = await supabase
+    .from("assessment_sections")
+    .select("id, source_type, source_category_id, question_count")
+    .eq("assessment_id", assessmentId)
+    .order("order_index");
+  if (error) throw new Error(error.message);
+
+  const result: SectionStructure[] = [];
+  for (const s of sections ?? []) {
+    const { data: fixed, error: fixedError } = await supabase
+      .from("assessment_questions")
+      .select("question_id")
+      .eq("section_id", s.id)
+      .order("order_index");
+    if (fixedError) throw new Error(fixedError.message);
+    result.push({
+      id: s.id,
+      sourceType: s.source_type,
+      sourceCategoryId: s.source_category_id,
+      questionCount: s.question_count,
+      fixedQuestionIds: (fixed ?? []).map((f) => f.question_id),
+    });
+  }
+  return result;
+}
+
+/**
+ * Saves an assessment's sections IN PLACE. Existing sections are updated by
+ * id instead of being deleted and re-created: attempt_questions (the
+ * questions each candidate was served) cascades from assessment_sections, so
+ * re-creating sections silently erased candidates' progress.
+ * Callers must run checkSectionChanges() first.
+ */
+async function writeSections(supabase: Supabase, assessmentId: string, sections: AssessmentFormInput["sections"]) {
+  const { data: existing, error: readError } = await supabase
+    .from("assessment_sections")
+    .select("id")
+    .eq("assessment_id", assessmentId);
+  if (readError) throw new Error(readError.message);
+
+  const existingIds = new Set((existing ?? []).map((s) => s.id));
+  const keptIds = new Set(sections.map((s) => s.id).filter((id): id is string => Boolean(id && existingIds.has(id))));
+  const removedIds = [...existingIds].filter((id) => !keptIds.has(id));
+
+  if (removedIds.length) {
+    const { error } = await supabase.from("assessment_sections").delete().in("id", removedIds);
+    if (error) throw new Error(error.message);
+  }
 
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i];
-    const { data: section, error } = await supabase
-      .from("assessment_sections")
-      .insert({
-        assessment_id: assessmentId,
-        title: s.title,
-        order_index: i,
-        duration_minutes: s.durationMinutes,
-        randomize_questions: s.randomizeQuestions,
-        randomize_options: s.randomizeOptions,
-        source_type: s.sourceType,
-        source_category_id: s.sourceType === "random_pool" ? s.sourceCategoryId : null,
-        question_count: s.sourceType === "fixed" ? (s.fixedQuestionIds?.length ?? 0) : s.questionCount,
-      })
-      .select("id")
-      .single();
-    if (error || !section) throw new Error(error?.message ?? "Could not create section.");
+    const row = {
+      assessment_id: assessmentId,
+      title: s.title,
+      order_index: i,
+      duration_minutes: s.durationMinutes,
+      randomize_questions: s.randomizeQuestions,
+      randomize_options: s.randomizeOptions,
+      source_type: s.sourceType,
+      source_category_id: s.sourceType === "random_pool" ? s.sourceCategoryId : null,
+      question_count: s.sourceType === "fixed" ? (s.fixedQuestionIds?.length ?? 0) : s.questionCount,
+    };
 
+    let sectionId: string;
+    if (s.id && keptIds.has(s.id)) {
+      const { error } = await supabase.from("assessment_sections").update(row).eq("id", s.id);
+      if (error) throw new Error(error.message);
+      sectionId = s.id;
+    } else {
+      const { data: created, error } = await supabase.from("assessment_sections").insert(row).select("id").single();
+      if (error || !created) throw new Error(error?.message ?? "Could not create section.");
+      sectionId = created.id;
+    }
+
+    // The fixed question list is configuration only (nothing references it),
+    // so replacing it is safe.
+    const { error: clearError } = await supabase.from("assessment_questions").delete().eq("section_id", sectionId);
+    if (clearError) throw new Error(clearError.message);
     if (s.sourceType === "fixed" && s.fixedQuestionIds?.length) {
-      const rows = s.fixedQuestionIds.map((question_id, order_index) => ({
-        section_id: section.id,
-        question_id,
-        order_index,
-      }));
+      const rows = s.fixedQuestionIds.map((question_id, order_index) => ({ section_id: sectionId, question_id, order_index }));
       const { error: aqError } = await supabase.from("assessment_questions").insert(rows);
       if (aqError) throw new Error(aqError.message);
     }
   }
+}
+
+/**
+ * Validates section changes before anything is written. Returns an error
+ * message, or null if the save may proceed:
+ *  - no structural change (sections/questions) while candidates are mid-exam
+ *  - never remove a section whose questions were already served to someone
+ */
+async function checkSectionChanges(
+  supabase: Supabase,
+  assessmentId: string,
+  sections: AssessmentFormInput["sections"]
+): Promise<string | null> {
+  const current = await loadStructure(supabase, assessmentId);
+  const proposed: SectionStructure[] = sections.map((s) => ({
+    id: s.id ?? "new",
+    sourceType: s.sourceType,
+    sourceCategoryId: s.sourceCategoryId,
+    questionCount: s.questionCount,
+    fixedQuestionIds: s.fixedQuestionIds ?? [],
+  }));
+
+  if (structureKey(current) !== structureKey(proposed)) {
+    const inProgress = await countInProgress(supabase, assessmentId);
+    if (inProgress > 0) {
+      return `Close the assessment to edit questions. ${inProgress} candidate${inProgress === 1 ? " is" : "s are"} taking it right now.`;
+    }
+  }
+
+  const keptIds = new Set(sections.map((s) => s.id).filter(Boolean));
+  const removedIds = current.map((s) => s.id).filter((id) => !keptIds.has(id));
+  if (removedIds.length) {
+    const { count, error } = await supabase
+      .from("attempt_questions")
+      .select("id", { count: "exact", head: true })
+      .in("section_id", removedIds);
+    if (error) throw new Error(error.message);
+    if ((count ?? 0) > 0) {
+      return "A section you removed has already been served to candidates, so it can't be deleted. Close this assessment and create a new one instead.";
+    }
+  }
+  return null;
+}
+
+async function countInProgress(supabase: Supabase, assessmentId: string) {
+  const { count, error } = await supabase
+    .from("attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("assessment_id", assessmentId)
+    .eq("status", "in_progress");
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 export async function createAssessment(raw: AssessmentFormInput) {
@@ -134,6 +264,15 @@ export async function updateAssessment(id: string, raw: AssessmentFormInput) {
   const input = parsed.data;
 
   const supabase = await createClient();
+
+  // Validate first, so a rejected save changes nothing.
+  try {
+    const blocked = await checkSectionChanges(supabase, id, input.sections);
+    if (blocked) return { error: blocked };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not check the assessment." };
+  }
+
   const { error } = await supabase
     .from("assessments")
     .update({
