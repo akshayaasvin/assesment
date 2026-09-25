@@ -3,7 +3,9 @@
 // with `supabase gen types typescript --linked` once the schema evolves.
 
 export type AssessmentStatus = "draft" | "scheduled" | "live" | "paused" | "ended";
-export type AttemptStatus = "not_started" | "in_progress" | "completed" | "disqualified";
+export type AssessmentKind = "aptitude" | "role";
+export type AptitudeStatus = "pending" | "eligible" | "not_eligible";
+export type AttemptStatus ="not_started" | "in_progress" | "completed" | "disqualified";
 export type SectionSourceType = "fixed" | "random_pool";
 export type Difficulty = "easy" | "medium" | "hard";
 export type ViolationType =
@@ -95,6 +97,8 @@ type PublicTablesBare = {
       auto_submit: boolean;
       result_visible_to_candidate: boolean;
       passing_percentage: number;
+      kind: AssessmentKind;
+      description: string | null;
       created_by: string | null;
       created_at: string;
       updated_at: string;
@@ -137,6 +141,11 @@ type PublicTablesBare = {
       college: string | null;
       district: string | null;
       department: string | null;
+      aptitude_status: AptitudeStatus;
+      aptitude_attempt_id: string | null;
+      aptitude_percentage: number | null;
+      eligibility_decided_at: string | null;
+      role_id: string | null;
       created_at: string;
     };
     Insert: Partial<PublicTablesBare["candidates"]["Row"]> & { name: string; email: string };
