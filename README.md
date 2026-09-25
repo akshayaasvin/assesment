@@ -85,6 +85,19 @@ Two layers must agree: `ADMIN_UID` gates the /admin routes and every Server Acti
 `profiles` row with `role = 'admin'`. The app creates that row automatically on login and on every
 admin action, so if saves ever fail with a "row-level security" error, the profile row is what to check.
 
+## End-to-end tests
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e                  # builds, starts on :3200, runs tests/e2e
+```
+
+The suite uses the Supabase project in `.env.local`. `tests/e2e/global-setup.ts` creates its own
+fixtures (titles/names prefixed `E2E <run id>`, keys `e2e-…`, emails `…@example.test`) and
+`global-teardown.ts` deletes exactly those afterwards - existing data is never modified. Admin tests sign
+in with a service-role magic link, so no admin password is needed. Set `E2E_KEEP_DATA=1` to keep the
+fixtures for debugging.
+
 ## Known follow-ups
 
 - Node 20 works but `@supabase/supabase-js` recommends Node 22+; upgrade when convenient.
