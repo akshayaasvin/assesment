@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildRuntimeSection } from "@/lib/assessment/section-resolver";
 import { checkAssessmentAccess } from "@/lib/portal/access";
+import { sectionRemainingSeconds } from "@/lib/assessment/section-progress";
 import type { RuntimeAssessment } from "@/types/domain";
 
 const bodySchema = z.object({ attemptToken: z.string().min(1) });
@@ -49,7 +50,9 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
   );
 
   const now = new Date().toISOString();
+  let startedAt = attempt.started_at;
   if (attempt.status === "not_started") {
+    startedAt = now;
     await admin.from("attempts").update({ status: "in_progress", started_at: now, last_seen_at: now }).eq("id", attemptId);
     await admin.from("assessment_events").insert({ attempt_id: attemptId, assessment_id: assessment.id, type: "started" });
   } else {
@@ -66,6 +69,12 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
     attemptToken: attempt.attempt_token,
     assessmentTitle: assessment.title,
     currentSectionIndex: attempt.current_section_index,
+    // Server-measured, so refreshing the page doesn't restart the section timer.
+    sectionRemainingSeconds: await sectionRemainingSeconds(
+      admin,
+      { id: attempt.id, started_at: startedAt, current_section_index: attempt.current_section_index },
+      (sections ?? []).map((s) => s.duration_minutes)
+    ),
     maxWarnings: assessment.max_warnings,
     warningsCount: attempt.warnings_count,
     settings: {

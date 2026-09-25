@@ -43,7 +43,8 @@ async function callApi(path: string, body: unknown) {
 
 export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified }: Props) {
   const { attemptId, attemptToken, sections, settings, maxWarnings } = runtime;
-  const [sectionIndex, setSectionIndex] = useState(Math.min(runtime.currentSectionIndex, sections.length - 1));
+  const initialSectionIndex = Math.min(runtime.currentSectionIndex, sections.length - 1);
+  const [sectionIndex, setSectionIndex] = useState(initialSectionIndex);
   const [questionIndex, setQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | undefined>>(() => {
     const initial: Record<string, string | undefined> = {};
@@ -80,16 +81,27 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
       submit();
       return;
     }
-    setSectionIndex((i) => i + 1);
+    const next = sectionIndex + 1;
+    setSectionIndex(next);
     setQuestionIndex(0);
-  }, [isLastSection, submit]);
+    // Record the section change server-side so a refresh resumes this section
+    // with its real remaining time.
+    callApi(`/api/attempts/${attemptId}/heartbeat`, { attemptToken, currentSectionIndex: next });
+  }, [isLastSection, submit, sectionIndex, attemptId, attemptToken]);
 
   const handleSectionExpire = useCallback(() => {
     goToNextSection();
   }, [goToNextSection]);
 
+  // After a refresh, resume the current section with the server-measured time
+  // left (at least 1s, so an already-expired section expires immediately).
+  const sectionSeconds =
+    sectionIndex === initialSectionIndex && typeof runtime.sectionRemainingSeconds === "number"
+      ? Math.max(1, Math.min(runtime.sectionRemainingSeconds, (section?.durationMinutes ?? 0) * 60))
+      : (section?.durationMinutes ?? 0) * 60;
+
   const { remaining, formatted } = useCountdownTimer(
-    (section?.durationMinutes ?? 0) * 60,
+    sectionSeconds,
     handleSectionExpire,
     section?.id
   );
@@ -118,9 +130,12 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
 
   // Heartbeat so Live Monitoring shows an accurate "last seen".
   useEffect(() => {
-    const interval = setInterval(() => callApi(`/api/attempts/${attemptId}/heartbeat`, { attemptToken }), 20000);
+    const interval = setInterval(
+      () => callApi(`/api/attempts/${attemptId}/heartbeat`, { attemptToken, currentSectionIndex: sectionIndex }),
+      20000
+    );
     return () => clearInterval(interval);
-  }, [attemptId, attemptToken]);
+  }, [attemptId, attemptToken, sectionIndex]);
 
   function selectOption(optionId: string) {
     if (!question) return;

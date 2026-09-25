@@ -27,6 +27,8 @@ export interface RuntimeAssessment {
   attemptToken: string;
   assessmentTitle: string;
   currentSectionIndex: number;
+  /** Seconds left in the current section when the exam (re)loaded; null if unknown. */
+  sectionRemainingSeconds?: number | null;
   maxWarnings: number;
   warningsCount: number;
   settings: {

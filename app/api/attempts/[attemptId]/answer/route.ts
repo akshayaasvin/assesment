@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { advanceSection } from "@/lib/assessment/section-progress";
 
 const bodySchema = z.object({
   attemptToken: z.string().min(1),
@@ -18,7 +19,7 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
   const admin = createAdminClient();
   const { data: attempt } = await admin
     .from("attempts")
-    .select("id, attempt_token, status")
+    .select("id, attempt_token, status, assessment_id")
     .eq("id", attemptId)
     .maybeSingle();
   if (!attempt || attempt.attempt_token !== attemptToken) {
@@ -39,13 +40,13 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
   );
   if (error) return NextResponse.json({ error: "Could not save your answer." }, { status: 500 });
 
-  await admin
-    .from("attempts")
-    .update({
-      last_seen_at: new Date().toISOString(),
-      ...(typeof currentSectionIndex === "number" ? { current_section_index: currentSectionIndex } : {}),
-    })
-    .eq("id", attemptId);
+  await admin.from("attempts").update({ last_seen_at: new Date().toISOString() }).eq("id", attemptId);
+  // Forward-only: an answer can't move the attempt back to an earlier section.
+  if (typeof currentSectionIndex === "number") {
+    await advanceSection(admin, attempt, currentSectionIndex).catch((e) =>
+      console.error("[exam] Could not record section advance:", e)
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }
