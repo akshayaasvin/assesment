@@ -1,4 +1,4 @@
-import { Plus, Users2, Pencil, Trash2 } from "lucide-react";
+import { Plus, Users2, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -7,8 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { RoleDialog } from "@/components/admin/role-dialog";
 import { RoleActiveToggle } from "@/components/admin/role-active-toggle";
-import { ConfirmAction } from "@/components/shared/confirm-action";
-import { deleteRole } from "@/lib/actions/roles";
+import { RoleDeleteButton } from "@/components/admin/role-delete-button";
 
 export default async function RolesPage() {
   const supabase = await createClient();
@@ -64,18 +63,7 @@ export default async function RolesPage() {
                             </Button>
                           }
                         />
-                        <ConfirmAction
-                          trigger={
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          }
-                          title="Delete this role?"
-                          description={`"${role.label}" will be removed. Assessments already using it are not deleted.`}
-                          confirmLabel="Delete"
-                          destructive
-                          onConfirm={() => deleteRole(role.id)}
-                        />
+                        <RoleDeleteButton id={role.id} label={role.label} />
                       </div>
                     </TableCell>
                   </TableRow>

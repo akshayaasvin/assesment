@@ -34,12 +34,24 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
     );
   }
 
-  const { data: candidate, error: candidateError } = await admin
+  // Find-or-create by email (same behaviour as the previous upsert) without
+  // ON CONFLICT, so it works whether or not the database still has a global
+  // unique constraint on candidates.email.
+  const details = { name, email, phone, college, district, department };
+  const { data: existing, error: findError } = await admin
     .from("candidates")
-    .upsert({ name, email, phone, college, district, department }, { onConflict: "email" })
     .select("id")
-    .single();
+    .eq("email", email)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const { data: candidate, error: candidateError } = findError
+    ? { data: null, error: findError }
+    : existing
+      ? await admin.from("candidates").update(details).eq("id", existing.id).select("id").single()
+      : await admin.from("candidates").insert(details).select("id").single();
   if (candidateError || !candidate) {
+    console.error("[register] candidate upsert failed:", candidateError);
     return NextResponse.json({ error: "Could not register. Please try again." }, { status: 500 });
   }
 

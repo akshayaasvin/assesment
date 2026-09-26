@@ -41,6 +41,14 @@ export async function middleware(request: NextRequest) {
   // Next.js internals never reach this file at all (see matcher).
   const response = { current: NextResponse.next({ request }) };
   const user = await getUserSafely(request, response);
+  // Only page navigations get redirected. Server Actions are POSTs to the page
+  // they're used on; redirecting one breaks it ("An unexpected response was
+  // received from the server") - that's what broke the sign-in check on
+  // /admin/login. Admin pages and actions check authorization themselves.
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return response.current;
+  }
+
   const authorized = isAdminUid(user?.id);
   const isLoginRoute = pathname === "/admin/login";
 

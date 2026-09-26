@@ -65,10 +65,15 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
     const result = await callApi(`/api/attempts/${attemptId}/submit`, { attemptToken });
     if (result && !result.error) {
       onSubmitted({ score: result.score, totalMarks: result.totalMarks, percentage: result.percentage });
+    } else if (result?.error === "This attempt was disqualified.") {
+      onDisqualified();
     } else {
-      onSubmitted({ score: 0, totalMarks: 0, percentage: 0 });
+      // Never show "completed" for a submission the server didn't record.
+      // Answers are already saved server-side, so retrying is safe.
+      isSubmittingRef.current = false;
+      alert(result?.error ?? "Could not submit your assessment. Check your internet connection and press Submit again.");
     }
-  }, [attemptId, attemptToken, onSubmitted]);
+  }, [attemptId, attemptToken, onSubmitted, onDisqualified]);
 
   const goToNextSection = useCallback(() => {
     if (isLastSection) {
