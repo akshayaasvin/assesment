@@ -4,7 +4,33 @@
 
 export type AssessmentStatus = "draft" | "scheduled" | "live" | "paused" | "ended";
 export type AssessmentKind = "aptitude" | "role";
-export type AptitudeStatus = "pending" | "eligible" | "not_eligible";
+export type DriveMode = "campus" | "online" | "walkin";
+export type DriveStatus = "draft" | "live" | "closed";
+export type CandidateStatus =
+  | "registered"
+  | "aptitude_in_progress"
+  | "aptitude_done"
+  | "role_in_progress"
+  | "completed"
+  | "disqualified";
+export type CandidateType = "fresher" | "experienced";
+export type AttemptStage = "aptitude" | "role";
+export type ProctorEventType =
+  | "tab_switch"
+  | "fullscreen_exit"
+  | "window_blur"
+  | "copy_paste"
+  | "no_face"
+  | "multiple_faces"
+  | "camera_off"
+  | "mic_off"
+  | "admin_warning"
+  // written by the pre-drive exam runner
+  | "copy"
+  | "paste"
+  | "contextmenu"
+  | "resize";
+export type CandidateRequestType = "snapshot" | "warning" | "live_view";
 export type AttemptStatus ="not_started" | "in_progress" | "completed" | "disqualified";
 export type SectionSourceType = "fixed" | "random_pool";
 export type Difficulty = "easy" | "medium" | "hard";
@@ -141,11 +167,26 @@ type PublicTablesBare = {
       college: string | null;
       district: string | null;
       department: string | null;
-      aptitude_status: AptitudeStatus;
-      aptitude_attempt_id: string | null;
-      aptitude_percentage: number | null;
-      eligibility_decided_at: string | null;
       role_id: string | null;
+      /** null = registered before drives existed ("Legacy"). */
+      drive_id: string | null;
+      degree: string | null;
+      branch: string | null;
+      graduation_year: number | null;
+      candidate_type: CandidateType | null;
+      years_experience: number | null;
+      current_company: string | null;
+      resume_path: string | null;
+      consent_at: string | null;
+      status: CandidateStatus;
+      disqualified_reason: string | null;
+      disqualified_at: string | null;
+      disqualified_by: string | null;
+      high_risk: boolean;
+      auth_user_id: string | null;
+      last_seen_at: string | null;
+      /** generated */ email_normalized: string;
+      /** generated */ phone_normalized: string;
       created_at: string;
     };
     Insert: Partial<PublicTablesBare["candidates"]["Row"]> & { name: string; email: string };
@@ -166,9 +207,11 @@ type PublicTablesBare = {
       score: number;
       total_marks: number;
       percentage: number;
+      stage: AttemptStage | null;
+      /** generated from started_at/submitted_at */ time_taken_seconds: number | null;
       created_at: string;
     };
-    Insert: Partial<PublicTablesBare["attempts"]["Row"]> & { candidate_id: string; assessment_id: string };
+    Insert: Partial<Omit<PublicTablesBare["attempts"]["Row"], "time_taken_seconds">> & { candidate_id: string; assessment_id: string };
     Update: Partial<PublicTablesBare["attempts"]["Row"]>;
   };
   attempt_questions: {
@@ -209,6 +252,92 @@ type PublicTablesBare = {
     Insert: Partial<PublicTablesBare["violations"]["Row"]> & { attempt_id: string; type: ViolationType };
     Update: Partial<PublicTablesBare["violations"]["Row"]>;
   };
+  proctor_events: {
+    Row: {
+      id: string;
+      attempt_id: string | null;
+      candidate_id: string | null;
+      type: ProctorEventType;
+      message: string | null;
+      meta: Record<string, unknown> | null;
+      snapshot_path: string | null;
+      created_at: string;
+    };
+    Insert: Partial<PublicTablesBare["proctor_events"]["Row"]> & { type: ProctorEventType };
+    Update: Partial<PublicTablesBare["proctor_events"]["Row"]>;
+  };
+  drives: {
+    Row: {
+      id: string;
+      name: string;
+      mode: DriveMode;
+      college_name: string | null;
+      start_at: string | null;
+      end_at: string | null;
+      status: DriveStatus;
+      aptitude_assessment_id: string | null;
+      /** null = off */ aptitude_cutoff: number | null;
+      /** null = off; flags "high risk", never disqualifies */ high_risk_tab_switches: number | null;
+      created_by: string | null;
+      created_at: string;
+      updated_at: string;
+    };
+    Insert: Partial<PublicTablesBare["drives"]["Row"]> & { name: string; mode: DriveMode };
+    Update: Partial<PublicTablesBare["drives"]["Row"]>;
+  };
+  drive_role_assessments: {
+    Row: { drive_id: string; assessment_id: string };
+    Insert: { drive_id: string; assessment_id: string };
+    Update: Partial<{ drive_id: string; assessment_id: string }>;
+  };
+  announcements: {
+    Row: {
+      id: string;
+      drive_id: string;
+      college_name: string | null;
+      candidate_id: string | null;
+      type: "text" | "audio";
+      text: string | null;
+      audio_path: string | null;
+      created_by: string | null;
+      created_at: string;
+    };
+    Insert: Partial<PublicTablesBare["announcements"]["Row"]> & { drive_id: string; type: "text" | "audio" };
+    Update: Partial<PublicTablesBare["announcements"]["Row"]>;
+  };
+  candidate_requests: {
+    Row: {
+      id: string;
+      candidate_id: string;
+      type: CandidateRequestType;
+      payload: Record<string, unknown> | null;
+      created_by: string | null;
+      created_at: string;
+      delivered_at: string | null;
+      fulfilled_at: string | null;
+      result_path: string | null;
+    };
+    Insert: Partial<PublicTablesBare["candidate_requests"]["Row"]> & { candidate_id: string; type: CandidateRequestType };
+    Update: Partial<PublicTablesBare["candidate_requests"]["Row"]>;
+  };
+  webrtc_signals: {
+    Row: {
+      id: number;
+      session_id: string;
+      candidate_id: string;
+      sender: "admin" | "candidate";
+      kind: "offer" | "answer" | "ice" | "end";
+      payload: Record<string, unknown> | null;
+      created_at: string;
+    };
+    Insert: Omit<Partial<PublicTablesBare["webrtc_signals"]["Row"]>, "id"> & {
+      session_id: string;
+      candidate_id: string;
+      sender: "admin" | "candidate";
+      kind: "offer" | "answer" | "ice" | "end";
+    };
+    Update: Partial<PublicTablesBare["webrtc_signals"]["Row"]>;
+  };
   assessment_events: {
     Row: {
       id: string;
@@ -236,6 +365,16 @@ type PublicTablesBare = {
     Insert: Partial<PublicTablesBare["default_settings"]["Row"]>;
     Update: Partial<PublicTablesBare["default_settings"]["Row"]>;
   };
+}
+
+export interface CandidateSyncResult {
+  status: CandidateStatus;
+  disqualifiedReason: string | null;
+  serverTime: string;
+  /** Answers the server refused (attempt closed, time over, or not this candidate's question). */
+  rejectedAnswers: number;
+  announcements: { id: string; type: "text" | "audio"; text: string | null; audioPath: string | null; private: boolean; createdAt: string }[];
+  requests: { id: string; type: CandidateRequestType; payload: Record<string, unknown> | null }[];
 }
 
 interface Relationship {
@@ -268,7 +407,10 @@ export const relationships = {
     fk("assessment_questions_section_id_fkey", "section_id", "assessment_sections"),
     fk("assessment_questions_question_id_fkey", "question_id", "questions"),
   ],
-  candidates: [] as Relationship[],
+  candidates: [
+    fk("candidates_drive_id_fkey", "drive_id", "drives"),
+    fk("candidates_role_id_fkey", "role_id", "roles"),
+  ],
   attempts: [
     fk("attempts_candidate_id_fkey", "candidate_id", "candidates"),
     fk("attempts_assessment_id_fkey", "assessment_id", "assessments"),
@@ -284,6 +426,22 @@ export const relationships = {
     fk("answers_selected_option_id_fkey", "selected_option_id", "question_options"),
   ],
   violations: [fk("violations_attempt_id_fkey", "attempt_id", "attempts")],
+  // The FK names keep their pre-rename "violations_" prefix (ALTER TABLE RENAME doesn't rename constraints).
+  proctor_events: [
+    fk("violations_attempt_id_fkey", "attempt_id", "attempts"),
+    fk("proctor_events_candidate_id_fkey", "candidate_id", "candidates"),
+  ],
+  drives: [fk("drives_aptitude_assessment_id_fkey", "aptitude_assessment_id", "assessments")],
+  drive_role_assessments: [
+    fk("drive_role_assessments_drive_id_fkey", "drive_id", "drives"),
+    fk("drive_role_assessments_assessment_id_fkey", "assessment_id", "assessments"),
+  ],
+  announcements: [
+    fk("announcements_drive_id_fkey", "drive_id", "drives"),
+    fk("announcements_candidate_id_fkey", "candidate_id", "candidates"),
+  ],
+  candidate_requests: [fk("candidate_requests_candidate_id_fkey", "candidate_id", "candidates")],
+  webrtc_signals: [fk("webrtc_signals_candidate_id_fkey", "candidate_id", "candidates")],
   assessment_events: [
     fk("assessment_events_attempt_id_fkey", "attempt_id", "attempts"),
     fk("assessment_events_assessment_id_fkey", "assessment_id", "assessments"),
@@ -299,6 +457,8 @@ export interface Database {
       [K in keyof PublicTablesBare]: PublicTablesBare[K] & { Relationships: RelationshipMap[K] };
     };
     Views: Record<string, never>;
+    // RPCs are typed in lib/drive/rpc.ts instead: any entry here breaks
+    // postgrest-js's relationship inference for this hand-written schema.
     Functions: Record<string, never>;
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
