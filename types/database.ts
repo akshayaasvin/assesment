@@ -241,17 +241,6 @@ type PublicTablesBare = {
     Insert: Partial<PublicTablesBare["answers"]["Row"]> & { attempt_id: string; question_id: string };
     Update: Partial<PublicTablesBare["answers"]["Row"]>;
   };
-  violations: {
-    Row: {
-      id: string;
-      attempt_id: string;
-      type: ViolationType;
-      message: string | null;
-      created_at: string;
-    };
-    Insert: Partial<PublicTablesBare["violations"]["Row"]> & { attempt_id: string; type: ViolationType };
-    Update: Partial<PublicTablesBare["violations"]["Row"]>;
-  };
   proctor_events: {
     Row: {
       id: string;
@@ -425,7 +414,6 @@ export const relationships = {
     fk("answers_question_id_fkey", "question_id", "questions"),
     fk("answers_selected_option_id_fkey", "selected_option_id", "question_options"),
   ],
-  violations: [fk("violations_attempt_id_fkey", "attempt_id", "attempts")],
   // The FK names keep their pre-rename "violations_" prefix (ALTER TABLE RENAME doesn't rename constraints).
   proctor_events: [
     fk("violations_attempt_id_fkey", "attempt_id", "attempts"),

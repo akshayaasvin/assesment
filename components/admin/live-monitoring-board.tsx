@@ -116,7 +116,7 @@ export function LiveMonitoringBoard({ initial, recent }: { initial: LiveAttempt[
     const channel = supabase
       .channel("live-monitoring")
       .on("postgres_changes", { event: "*", schema: "public", table: "attempts" }, () => router.refresh())
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "violations" }, () => router.refresh())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "proctor_events" }, () => router.refresh())
       .subscribe();
 
     return () => {

@@ -71,13 +71,14 @@ export default async function LiveMonitoringPage() {
   if (liveIds.length) {
     const [answers, violations] = await Promise.all([
       supabase.from("answers").select("attempt_id").in("attempt_id", liveIds).not("selected_option_id", "is", null),
-      supabase.from("violations").select("attempt_id, type").in("attempt_id", liveIds),
+      supabase.from("proctor_events").select("attempt_id, type").in("attempt_id", liveIds),
     ]);
     if (answers.error) throw new Error(`Could not load answers: ${answers.error.message}`);
     if (violations.error) throw new Error(`Could not load violations: ${violations.error.message}`);
 
     for (const a of answers.data ?? []) answeredByAttempt.set(a.attempt_id, (answeredByAttempt.get(a.attempt_id) ?? 0) + 1);
     for (const v of violations.data ?? []) {
+      if (!v.attempt_id) continue;
       const flags = flagsByAttempt.get(v.attempt_id) ?? {};
       const type = v.type as ViolationType;
       flags[type] = (flags[type] ?? 0) + 1;

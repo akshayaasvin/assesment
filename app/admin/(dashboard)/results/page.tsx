@@ -35,7 +35,7 @@ export default async function ResultsPage() {
       data: ResultAttemptRow[] | null;
       error: { message: string } | null;
     }>,
-    supabase.from("violations").select("attempt_id"),
+    supabase.from("proctor_events").select("attempt_id").not("attempt_id", "is", null),
   ]);
   // A failed query must not look like "No results match your filters".
   if (error) throw new Error(`Could not load results: ${error.message}`);
@@ -43,6 +43,7 @@ export default async function ResultsPage() {
 
   const violationCounts = new Map<string, number>();
   for (const v of violations ?? []) {
+    if (!v.attempt_id) continue;
     violationCounts.set(v.attempt_id, (violationCounts.get(v.attempt_id) ?? 0) + 1);
   }
 

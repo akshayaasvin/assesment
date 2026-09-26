@@ -6,7 +6,7 @@ import type { Database } from "@/types/database";
  * Service-role client. Bypasses RLS entirely - only ever import this from
  * Route Handlers or scripts, never from a Server Component that renders
  * candidate-facing HTML, and never from client code. This is how the
- * candidate exam flow reads/writes attempts, answers and violations without
+ * candidate exam flow reads/writes attempts, answers and proctor events without
  * needing a Supabase Auth login of its own.
  */
 export function createAdminClient() {
