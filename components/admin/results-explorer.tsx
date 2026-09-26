@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Download, FileSpreadsheet, Search } from "lucide-react";
+import { Download, FileSpreadsheet, Search, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DeleteCandidatesDialog } from "@/components/admin/delete-candidates-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +22,7 @@ import type { AttemptStatus } from "@/types/database";
 
 export interface ResultRow {
   id: string;
+  candidateId: string | null;
   name: string;
   email: string;
   phone: string;
@@ -64,6 +67,7 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
 
   const assessments = useMemo(() => [...new Set(rows.map((r) => r.assessment))], [rows]);
 
+  const [selected, setSelected] = useState<Set<string>>(new Set()); // candidate ids
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -111,6 +115,18 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
         </Select>
 
         <div className="ml-auto flex gap-2">
+          {selected.size > 0 && (
+            <DeleteCandidatesDialog
+              candidateIds={[...selected]}
+              label={`${selected.size} candidate${selected.size === 1 ? "" : "s"}`}
+              onDeleted={() => setSelected(new Set())}
+              trigger={
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4" /> Delete selected ({selected.size})
+                </Button>
+              }
+            />
+          )}
           <Button variant="outline" size="sm" onClick={() => downloadResultsCsv(filtered.map(toExportRow))}>
             <Download className="h-4 w-4" /> CSV
           </Button>
@@ -127,6 +143,15 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Select all shown"
+                    checked={filtered.length > 0 && filtered.every((r) => r.candidateId && selected.has(r.candidateId))}
+                    onCheckedChange={(v) =>
+                      setSelected(v ? new Set(filtered.flatMap((r) => (r.candidateId ? [r.candidateId] : []))) : new Set())
+                    }
+                  />
+                </TableHead>
                 <TableHead>Candidate</TableHead>
                 <TableHead>Assessment</TableHead>
                 <TableHead>Role</TableHead>
@@ -134,11 +159,28 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
                 <TableHead>Status</TableHead>
                 <TableHead>Violations</TableHead>
                 <TableHead>Submitted</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((r) => (
-                <TableRow key={r.id}>
+                <TableRow key={r.id} data-state={r.candidateId && selected.has(r.candidateId) ? "selected" : undefined}>
+                  <TableCell>
+                    {r.candidateId && (
+                      <Checkbox
+                        aria-label={`Select ${r.name}`}
+                        checked={selected.has(r.candidateId)}
+                        onCheckedChange={() =>
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(r.candidateId!)) next.delete(r.candidateId!);
+                            else next.add(r.candidateId!);
+                            return next;
+                          })
+                        }
+                      />
+                    )}
+                  </TableCell>
                   <TableCell>
                     <p className="font-medium">{r.name}</p>
                     <p className="text-xs text-muted-foreground">{r.email}</p>
@@ -154,6 +196,19 @@ export function ResultsExplorer({ rows }: { rows: ResultRow[] }) {
                   <TableCell className="text-sm text-muted-foreground">{r.violations}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {r.submittedAt ? new Date(r.submittedAt).toLocaleString() : "—"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {r.candidateId && (
+                      <DeleteCandidatesDialog
+                        candidateIds={[r.candidateId]}
+                        label={r.name}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" aria-label={`Delete ${r.name}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        }
+                      />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

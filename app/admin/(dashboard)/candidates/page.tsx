@@ -3,8 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AttemptStatusBadge } from "@/components/shared/status-badge";
+import { CandidatesTable } from "@/components/admin/candidates-table";
 import type { AttemptStatus } from "@/types/database";
 
 interface CandidateRow {
@@ -36,42 +35,17 @@ export default async function CandidatesPage() {
               <EmptyState icon={UserRound} title="No candidates yet" description="Candidates appear here as soon as they register for an assessment." />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>College / District</TableHead>
-                  <TableHead>Attempts</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {candidates.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <div>{c.email}</div>
-                      <div>{c.phone}</div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <div>{c.college}</div>
-                      <div>{c.district}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1.5">
-                        {(c.attempts ?? []).map((a, i) => (
-                          <div key={i} className="flex items-center gap-2 text-sm">
-                            <span className="text-muted-foreground">{a.assessments?.title ?? "—"}</span>
-                            <AttemptStatusBadge status={a.status} />
-                            {a.status === "completed" && <span className="text-muted-foreground">{a.percentage}%</span>}
-                          </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <CandidatesTable
+              rows={candidates.map((c) => ({
+                id: c.id,
+                name: c.name,
+                email: c.email,
+                phone: c.phone,
+                college: c.college,
+                district: c.district,
+                attempts: (c.attempts ?? []).map((a) => ({ status: a.status, percentage: a.percentage, title: a.assessments?.title ?? "—" })),
+              }))}
+            />
           )}
         </CardContent>
       </Card>

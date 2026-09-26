@@ -12,6 +12,7 @@ interface ResultAttemptRow {
   percentage: number;
   status: AttemptStatus;
   candidates: {
+    id: string;
     name: string;
     email: string;
     phone: string | null;
@@ -29,7 +30,7 @@ export default async function ResultsPage() {
     supabase
       .from("attempts")
       .select(
-        "id, started_at, submitted_at, score, total_marks, percentage, status, candidates(name, email, phone, college, district, department), assessments(title, roles(label))"
+        "id, started_at, submitted_at, score, total_marks, percentage, status, candidates(id, name, email, phone, college, district, department), assessments(title, roles(label))"
       )
       .order("submitted_at", { ascending: false, nullsFirst: false }) as unknown as Promise<{ data: ResultAttemptRow[] | null }>,
     supabase.from("violations").select("attempt_id"),
@@ -42,6 +43,7 @@ export default async function ResultsPage() {
 
   const rows: ResultRow[] = (attempts ?? []).map((a) => ({
     id: a.id,
+    candidateId: a.candidates?.id ?? null,
     name: a.candidates?.name ?? "—",
     email: a.candidates?.email ?? "",
     phone: a.candidates?.phone ?? "",
