@@ -7,7 +7,8 @@
 -- candidates or admin data. Scoring stays on the server (finalizeAttempt in
 -- a Vercel route, service role), never in the browser.
 --
--- Requires 0003. Apply to staging first.
+-- Requires 0003. Approved for LOCAL only; production only at cutover, after
+-- the backup, on explicit go. Idempotent (safe to re-run).
 
 begin;
 
@@ -28,9 +29,11 @@ grant execute on function current_candidate_id() to authenticated;
 --    All candidate WRITES go through candidate_sync() below or through
 --    server routes; there are no candidate insert/update/delete policies.
 -- =========================================================
+drop policy if exists "candidates_self_select" on candidates;
 create policy "candidates_self_select" on candidates
   for select to authenticated using (auth_user_id = auth.uid());
 
+drop policy if exists "attempts_self_select" on attempts;
 create policy "attempts_self_select" on attempts
   for select to authenticated using (candidate_id = current_candidate_id());
 
@@ -38,6 +41,7 @@ create policy "attempts_self_select" on attempts
 -- answers for a resume come back from the server route), so is_correct can't
 -- leak even for their own graded answers.
 
+drop policy if exists "announcements_self_select" on announcements;
 create policy "announcements_self_select" on announcements
   for select to authenticated
   using (
@@ -46,12 +50,15 @@ create policy "announcements_self_select" on announcements
     and (college_name is null or college_name = (select college from candidates where id = current_candidate_id()))
   );
 
+drop policy if exists "candidate_requests_self_select" on candidate_requests;
 create policy "candidate_requests_self_select" on candidate_requests
   for select to authenticated using (candidate_id = current_candidate_id());
 
 -- Live-view signalling: the candidate end reads admin messages and writes its own.
+drop policy if exists "webrtc_signals_self_select" on webrtc_signals;
 create policy "webrtc_signals_self_select" on webrtc_signals
   for select to authenticated using (candidate_id = current_candidate_id());
+drop policy if exists "webrtc_signals_self_insert" on webrtc_signals;
 create policy "webrtc_signals_self_insert" on webrtc_signals
   for insert to authenticated with check (candidate_id = current_candidate_id() and sender = 'candidate');
 
@@ -59,16 +66,19 @@ create policy "webrtc_signals_self_insert" on webrtc_signals
 -- 3. Storage: candidates upload into their own folder (<auth uid>/...) only.
 --    Bucket size/type limits are enforced by the buckets themselves (0003).
 -- =========================================================
+drop policy if exists "resumes_self_insert" on storage.objects;
 create policy "resumes_self_insert" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'resumes' and (storage.foldername(name))[1] = auth.uid()::text);
 
+drop policy if exists "snapshots_self_insert" on storage.objects;
 create policy "snapshots_self_insert" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'proctor-snapshots' and (storage.foldername(name))[1] = auth.uid()::text);
 
 -- Voice announcements are stored as announcements/<drive id>/<file>; candidates
 -- of that drive may download them.
+drop policy if exists "announcements_audio_select" on storage.objects;
 create policy "announcements_audio_select" on storage.objects
   for select to authenticated
   using (
@@ -76,6 +86,7 @@ create policy "announcements_audio_select" on storage.objects
     and (storage.foldername(name))[1] = (select drive_id::text from candidates where id = current_candidate_id())
   );
 
+drop policy if exists "storage_admin_all" on storage.objects;
 create policy "storage_admin_all" on storage.objects
   for all to authenticated
   using (bucket_id in ('resumes', 'proctor-snapshots', 'announcements') and is_admin())

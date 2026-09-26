@@ -8,6 +8,13 @@
 --
 -- Nothing here deletes or rewrites existing rows except the explicit
 -- backfills in section 7 (which only fill new columns).
+--
+-- IDEMPOTENT: every statement can run again safely. Production already has
+-- an earlier version of this file applied (verified read-only 2026-09-26:
+-- drives/announcements/proctor_events, candidate + attempt columns, buckets
+-- and admin_usage exist; auth_user_id, last_seen_at, candidate_requests,
+-- webrtc_signals and the `violations` compatibility view do not). Re-running
+-- this file at cutover adds exactly the missing pieces.
 
 begin;
 
@@ -184,10 +191,15 @@ alter table drive_role_assessments enable row level security;
 alter table announcements enable row level security;
 alter table candidate_requests enable row level security;
 alter table webrtc_signals enable row level security;
+drop policy if exists "drives_admin_all" on drives;
 create policy "drives_admin_all" on drives for all using (is_admin()) with check (is_admin());
+drop policy if exists "drive_role_assessments_admin_all" on drive_role_assessments;
 create policy "drive_role_assessments_admin_all" on drive_role_assessments for all using (is_admin()) with check (is_admin());
+drop policy if exists "announcements_admin_all" on announcements;
 create policy "announcements_admin_all" on announcements for all using (is_admin()) with check (is_admin());
+drop policy if exists "candidate_requests_admin_all" on candidate_requests;
 create policy "candidate_requests_admin_all" on candidate_requests for all using (is_admin()) with check (is_admin());
+drop policy if exists "webrtc_signals_admin_all" on webrtc_signals;
 create policy "webrtc_signals_admin_all" on webrtc_signals for all using (is_admin()) with check (is_admin());
 -- Candidate-side access (own rows only, via auth.uid()) and the candidate
 -- sync/submit RPCs are added in 0005 alongside the code that uses them.
@@ -224,7 +236,8 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
   ('resumes', 'resumes', false, 1048576, array['application/pdf']),           -- 1 MB, optional
   ('proctor-snapshots', 'proctor-snapshots', false, 51200, array['image/jpeg']), -- ~320px JPEG, target <= 20 KB
   ('announcements', 'announcements', false, 1048576, array['audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg'])
-on conflict (id) do nothing;
+on conflict (id) do update
+  set file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
 
 -- =========================================================
 -- 9. Admin-only usage RPC for Settings -> Storage panel

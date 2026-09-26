@@ -1,13 +1,10 @@
--- Assistlana: campus drive flow - CONTRACT phase.
--- Apply only AFTER the drive-flow code is deployed and verified. Removes
+-- Assistlana: campus drive flow - CONTRACT phase (was 0004).
+-- Apply only after the drive-flow code has run on production for at least
+-- one real drive (approved in principle 2026-09-26). Removes
 -- pieces the new code no longer uses. Dropping columns deletes their values;
 -- every dropped value is either superseded (see notes) or recoverable.
 
 begin;
-
--- Email is unique per drive now (uq_candidates_drive_email), not globally:
--- the same person may register for a later drive.
-alter table candidates drop constraint if exists candidates_email_key;
 
 -- The old app wrote `violations`; the new app writes proctor_events directly.
 drop view if exists violations;
