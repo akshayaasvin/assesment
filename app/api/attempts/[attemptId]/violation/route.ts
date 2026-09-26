@@ -35,9 +35,16 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
     .single();
   const maxWarnings = assessment?.max_warnings ?? 4;
 
-  const warningsCount = attempt.warnings_count + 1;
-  await admin.from("attempts").update({ warnings_count: warningsCount }).eq("id", attemptId);
+  // Count the saved violation rows instead of "read count + 1": two violations
+  // arriving at the same moment both read the old count and one was lost.
   await admin.from("violations").insert({ attempt_id: attemptId, type, message });
+  const { count: saved } = await admin
+    .from("violations")
+    .select("id", { count: "exact", head: true })
+    .eq("attempt_id", attemptId);
+  const warningsCount = Math.max(saved ?? 0, attempt.warnings_count + 1);
+  // Only ever raise the stored count (a slower concurrent request must not lower it).
+  await admin.from("attempts").update({ warnings_count: warningsCount }).eq("id", attemptId).lt("warnings_count", warningsCount);
   await admin.from("assessment_events").insert({
     attempt_id: attemptId,
     assessment_id: attempt.assessment_id,
