@@ -5,9 +5,9 @@ import { ADMIN_STATE, db, fixtures } from "./support/db";
 import { statValue, watchForErrors } from "./support/admin";
 
 /**
- * Runs after 02-candidate, which leaves candidate A with a completed aptitude
- * (66.67%) and a completed role assessment (100%), and candidate B with a
- * completed aptitude (0%).
+ * Runs after 02-drive-flow, which leaves candidate A (campus drive) with a
+ * completed aptitude (66.67%) and role test (100%), and candidate B (cutoff
+ * drive) with a completed aptitude (0%) below the cutoff.
  */
 test.use({ storageState: ADMIN_STATE });
 
@@ -22,10 +22,10 @@ test("candidates: self-registered candidates are listed with their details and a
   await expect(row).toContainText(`e2e+${run}-a@example.test`);
   await expect(row).toContainText("9876500001");
   await expect(row).toContainText("E2E College");
-  await expect(row).toContainText("Eligible · 66.67%");
+  await expect(row).toContainText("Completed");
   await expect(row).toContainText(roleLabel);
   await expect(row).toContainText(aptitude.title);
-  await expect(page.getByRole("row", { name: new RegExp(candidateB()) })).toContainText("Not eligible");
+  await expect(page.getByRole("row", { name: new RegExp(candidateB()) })).toContainText("Aptitude done");
 
   // Same count as the dashboard's "Total Candidates"
   const { count } = await db().from("candidates").select("id", { count: "exact", head: true });

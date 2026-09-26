@@ -92,11 +92,15 @@ npx playwright install chromium   # once
 npm run test:e2e                  # builds, starts on :3200, runs tests/e2e
 ```
 
-The suite uses the Supabase project in `.env.local`. `tests/e2e/global-setup.ts` creates its own
-fixtures (titles/names prefixed `E2E <run id>`, keys `e2e-…`, emails `…@example.test`) and
-`global-teardown.ts` deletes exactly those afterwards - existing data is never modified. Admin tests sign
-in with a service-role magic link, so no admin password is needed. Set `E2E_KEEP_DATA=1` to keep the
-fixtures for debugging.
+The suite runs against the **staging** Supabase project only: it reads `.env.staging.local`
+(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_UID`),
+passes those values to the test server, and refuses to start if they point at the production project.
+Staging needs migrations 0001-0005 applied and anonymous sign-ins enabled.
+
+`tests/e2e/global-setup.ts` creates its own fixtures (titles/names prefixed `E2E <run id>`, keys `e2e-…`,
+emails `…@example.test`) and `global-teardown.ts` deletes exactly those, plus the anonymous auth users the
+tests created. Admin tests sign in with a service-role magic link, so no admin password is needed. Set
+`E2E_KEEP_DATA=1` to keep the fixtures for debugging.
 
 ## Known follow-ups
 

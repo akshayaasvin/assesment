@@ -110,6 +110,27 @@ export default async function globalSetup() {
     ids.slice(0, 2)
   );
 
+  // --- Drives
+  async function drive(name: string, extra: Record<string, unknown>, roleAssessmentIds: string[]) {
+    const d = await must(
+      s.from("drives").insert({ name, status: "live", aptitude_assessment_id: aptitude.id, ...extra }).select("id").single(),
+      name
+    );
+    if (roleAssessmentIds.length) {
+      await must(
+        s.from("drive_role_assessments").insert(roleAssessmentIds.map((assessment_id) => ({ drive_id: d.id, assessment_id }))).select("drive_id"),
+        `${name} roles`
+      );
+    }
+    return d.id as string;
+  }
+  const driveName = `E2E ${run} Campus Drive`;
+  const driveId = await drive(driveName, { mode: "campus", college_name: "E2E College" }, [roleAssessment.id, draftAssessment.id]);
+  const cutoffName = `E2E ${run} Cutoff Drive`;
+  const cutoffDriveId = await drive(cutoffName, { mode: "online", aptitude_cutoff: 80 }, [roleAssessment.id]);
+  const draftName = `E2E ${run} Draft Drive`;
+  const draftDriveId = await drive(draftName, { mode: "walkin", status: "draft" }, []);
+
   // --- Admin session (magic link via service role - no password needed, no email sent)
   const { data: adminUser, error: adminErr } = await s.auth.admin.getUserById(ADMIN_UID);
   if (adminErr || !adminUser.user?.email) throw new Error(`e2e setup: admin user: ${adminErr?.message}`);
@@ -134,6 +155,9 @@ export default async function globalSetup() {
     aptitude: { ...aptitude, passingPercentage: 50 },
     roleAssessment,
     draftAssessment,
+    drive: { id: driveId, name: driveName, college: "E2E College" },
+    cutoffDrive: { id: cutoffDriveId, name: cutoffName },
+    draftDrive: { id: draftDriveId, name: draftName },
     nonAdminUserId: created.data.user.id,
   });
 }

@@ -1,7 +1,10 @@
 /**
- * Test-only database access (service role, from .env.local). Used to seed and
- * clean up e2e fixtures and to assert what the app wrote. Never imported by
- * the app itself.
+ * Test-only database access (service role). Used to seed and clean up e2e
+ * fixtures and to assert what the app wrote. Never imported by the app.
+ *
+ * Reads the STAGING project from .env.staging.local (override with
+ * E2E_ENV_FILE) and refuses to run against the production project: the drive
+ * flow tests create drives, anonymous users and live assessments.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -10,7 +13,17 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { WebSocket } from "ws";
 
-config({ path: ".env.local", quiet: true });
+export const E2E_ENV_FILE = process.env.E2E_ENV_FILE ?? ".env.staging.local";
+if (!existsSync(E2E_ENV_FILE)) {
+  throw new Error(`e2e: ${E2E_ENV_FILE} not found. Create it with the STAGING project's keys (see README -> End-to-end tests).`);
+}
+config({ path: E2E_ENV_FILE, quiet: true, override: true });
+
+/** Production project ref - the suite must never write there. */
+const PRODUCTION_PROJECT_REF = "ieqrugvsgjpidrrsqufn";
+if ((process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").includes(PRODUCTION_PROJECT_REF)) {
+  throw new Error("e2e: refusing to run against the PRODUCTION Supabase project. Point E2E_ENV_FILE at staging.");
+}
 
 // supabase-js needs a global WebSocket; Node 20 (this project's runtime) has
 // none. Same polyfill as scripts/supabase-admin-client.ts.
@@ -25,7 +38,7 @@ export const ADMIN_UID = required("ADMIN_UID");
 
 function required(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`e2e: ${name} must be set in .env.local`);
+  if (!value) throw new Error(`e2e: ${name} must be set in ${E2E_ENV_FILE}`);
   return value;
 }
 
@@ -53,6 +66,12 @@ export interface Fixtures {
   aptitude: { id: string; slug: string; title: string; passingPercentage: number };
   roleAssessment: { id: string; slug: string; title: string };
   draftAssessment: { id: string; slug: string; title: string };
+  /** Live drive: aptitude + the live role assessment (+ the draft one, which must not be offered). */
+  drive: { id: string; name: string; college: string };
+  /** Live drive with an 80% aptitude cutoff, for the "not eligible" path. */
+  cutoffDrive: { id: string; name: string };
+  /** Draft drive: never listed, 404 by URL. */
+  draftDrive: { id: string; name: string };
   nonAdminUserId: string;
 }
 
@@ -121,8 +140,14 @@ export async function sessionForEmail(email: string) {
  */
 export async function cleanupE2EData() {
   const s = db();
+
+  // Anonymous auth users have no email; find the ones behind e2e candidates first.
+  const { data: e2eCandidates } = await s.from("candidates").select("auth_user_id").like("email", "e2e+%@example.test");
+  const anonymousUserIds = (e2eCandidates ?? []).map((c) => c.auth_user_id).filter((id): id is string => Boolean(id));
+
   const steps = [
     s.from("candidates").delete().like("email", "e2e+%@example.test"),
+    s.from("drives").delete().like("name", "E2E %"),
     s.from("assessments").delete().like("title", "E2E %"),
     s.from("questions").delete().like("text", "E2E %"),
     s.from("roles").delete().like("key", "e2e-%"),
@@ -133,6 +158,7 @@ export async function cleanupE2EData() {
     if (error) console.error("e2e cleanup:", error.message);
   }
 
+  for (const id of anonymousUserIds) await s.auth.admin.deleteUser(id);
   const { data: users } = await s.auth.admin.listUsers({ perPage: 1000 });
   for (const u of users?.users ?? []) {
     if (u.email?.startsWith("e2e-") && u.email.endsWith("@example.test")) await s.auth.admin.deleteUser(u.id);
