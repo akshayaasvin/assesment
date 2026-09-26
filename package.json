@@ -10,7 +10,9 @@
     "seed": "tsx scripts/seed.ts",
     "create-admin": "tsx scripts/create-admin.ts",
     "reset-admin-password": "tsx scripts/reset-admin-password.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "dev:local": "node scripts/dev-local.mjs",
+    "local:setup": "tsx scripts/local-setup.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

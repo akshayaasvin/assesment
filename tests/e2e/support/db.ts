@@ -2,9 +2,9 @@
  * Test-only database access (service role). Used to seed and clean up e2e
  * fixtures and to assert what the app wrote. Never imported by the app.
  *
- * Reads the STAGING project from .env.staging.local (override with
- * E2E_ENV_FILE) and refuses to run against the production project: the drive
- * flow tests create drives, anonymous users and live assessments.
+ * Reads LOCAL Supabase from .env.test.local (written by scripts/local-setup.ts;
+ * override with E2E_ENV_FILE) and refuses to run against the production
+ * project: the drive flow tests create drives, anonymous users and live assessments.
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -13,16 +13,16 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { WebSocket } from "ws";
 
-export const E2E_ENV_FILE = process.env.E2E_ENV_FILE ?? ".env.staging.local";
+export const E2E_ENV_FILE = process.env.E2E_ENV_FILE ?? ".env.test.local";
 if (!existsSync(E2E_ENV_FILE)) {
-  throw new Error(`e2e: ${E2E_ENV_FILE} not found. Create it with the STAGING project's keys (see README -> End-to-end tests).`);
+  throw new Error(`e2e: ${E2E_ENV_FILE} not found. Run \`supabase start\` then \`npx tsx scripts/local-setup.ts\` (see README -> End-to-end tests).`);
 }
 config({ path: E2E_ENV_FILE, quiet: true, override: true });
 
 /** Production project ref - the suite must never write there. */
 const PRODUCTION_PROJECT_REF = "ieqrugvsgjpidrrsqufn";
 if ((process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").includes(PRODUCTION_PROJECT_REF)) {
-  throw new Error("e2e: refusing to run against the PRODUCTION Supabase project. Point E2E_ENV_FILE at staging.");
+  throw new Error("e2e: refusing to run against the PRODUCTION Supabase project. Tests run against local Supabase only.");
 }
 
 // supabase-js needs a global WebSocket; Node 20 (this project's runtime) has

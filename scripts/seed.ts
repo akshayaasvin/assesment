@@ -1,6 +1,6 @@
 /**
  * Seeds categories, roles, MCQ questions (ported from the legacy static HTML app)
- * and one draft demo assessment per role. Requires Supabase keys in .env.local.
+ * and one draft demo assessment per role. Targets local Supabase by default (scripts/target-env.ts).
  *
  * Usage: npm run seed
  */

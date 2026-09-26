@@ -1,11 +1,12 @@
 /**
- * Creates the first (or another) admin login. Requires Supabase keys in .env.local.
+ * Creates the first (or another) admin login. Targets local Supabase by default (scripts/target-env.ts).
  *
  * Usage: npm run create-admin -- admin@company.com "StrongPassword123"
  */
 import { supabaseAdmin as supabase } from "./supabase-admin-client";
+import { positionalArgs } from "./target-env";
 
-const [email, password] = process.argv.slice(2);
+const [email, password] = positionalArgs();
 if (!email || !password) {
   console.error('Usage: npm run create-admin -- admin@company.com "StrongPassword123"');
   process.exit(1);

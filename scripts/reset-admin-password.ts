@@ -4,13 +4,16 @@
  * account configured in ADMIN_UID; pass an email as the second argument to
  * reset a different account instead.
  *
- * Usage:
+ * Usage (local Supabase by default):
  *   npm run reset-admin-password -- "NewStrongPassword123"
  *   npm run reset-admin-password -- "NewStrongPassword123" someone@else.com
+ * Production (deliberate):
+ *   CONFIRM_PRODUCTION=ieqrugvsgjpidrrsqufn npm run reset-admin-password -- "NewStrongPassword123" --production
  */
 import { supabaseAdmin as supabase } from "./supabase-admin-client";
+import { positionalArgs } from "./target-env";
 
-const [password, email] = process.argv.slice(2);
+const [password, email] = positionalArgs();
 
 if (!password || password.length < 8) {
   console.error('Usage: npm run reset-admin-password -- "NewStrongPassword123" [email]');

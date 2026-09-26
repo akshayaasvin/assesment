@@ -7,7 +7,7 @@
  * Limits are the free-tier numbers published by Supabase and Vercel
  * (checked 2026-09-25). Every row should stay under 50% of the monthly limit
  * per drive, so several drives fit in a month. Per-item sizes are estimates
- * to be replaced with measurements from the staging load test.
+ * to be replaced with measurements from the local load test.
  */
 
 const arg = (name: string, fallback: number) => {

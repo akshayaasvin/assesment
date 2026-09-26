@@ -85,17 +85,29 @@ Two layers must agree: `ADMIN_UID` gates the /admin routes and every Server Acti
 `profiles` row with `role = 'admin'`. The app creates that row automatically on login and on every
 admin action, so if saves ever fail with a "row-level security" error, the profile row is what to check.
 
+## Local Supabase (development and tests)
+
+Everything is built and tested against a local Supabase first; production database changes are the last
+step of a release. Requires Docker Desktop (with WSL 2 on Windows) and the Supabase CLI.
+
+```bash
+supabase start                   # applies supabase/migrations 0001-0006 to a local database
+npm run local:setup              # writes .env.test.local, creates admin@local.test, loads questions + aptitude
+npm run dev:local                # next dev against local Supabase (refuses production)
+```
+
+`supabase/config.toml` enables anonymous sign-ins and raises the auth rate limits the drive flow needs.
+
+All scripts (`scripts/*.ts`) and the test suites target `.env.test.local` by default and **refuse the
+production project**. An approved cutover step can target production only deliberately:
+`CONFIRM_PRODUCTION=<project ref> npx tsx scripts/<script>.ts ... --production`.
+
 ## End-to-end tests
 
 ```bash
 npx playwright install chromium   # once
-npm run test:e2e                  # builds, starts on :3200, runs tests/e2e
+npm run test:e2e                  # builds, starts on :3200 against local Supabase, runs tests/e2e
 ```
-
-The suite runs against the **staging** Supabase project only: it reads `.env.staging.local`
-(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_UID`),
-passes those values to the test server, and refuses to start if they point at the production project.
-Staging needs migrations 0001-0005 applied and anonymous sign-ins enabled.
 
 `tests/e2e/global-setup.ts` creates its own fixtures (titles/names prefixed `E2E <run id>`, keys `e2e-…`,
 emails `…@example.test`) and `global-teardown.ts` deletes exactly those, plus the anonymous auth users the

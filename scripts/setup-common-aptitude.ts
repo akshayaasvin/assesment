@@ -13,7 +13,8 @@
  *   npx tsx scripts/setup-common-aptitude.ts           # dry run
  *   npx tsx scripts/setup-common-aptitude.ts --apply   # do it
  *
- * Targets whatever project .env.local points at: run against STAGING first.
+ * Targets LOCAL Supabase by default. Production only at cutover, on go:
+ *   CONFIRM_PRODUCTION=ieqrugvsgjpidrrsqufn npx tsx scripts/setup-common-aptitude.ts --apply --production
  */
 import { supabaseAdmin as s } from "./supabase-admin-client";
 
