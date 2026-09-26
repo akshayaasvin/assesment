@@ -20,6 +20,12 @@ interface UseViolationTrackerOptions {
   copyPasteBlock: boolean;
   onViolation: (type: ViolationType, message: string) => void;
   onDisqualify: () => void;
+  /**
+   * false = record and warn only, never end the test. Campus drives use this:
+   * disqualification is always an invigilator's decision. Also logs every
+   * violation (even while a warning is showing) and right-click/paste.
+   */
+  autoDisqualify?: boolean;
 }
 
 const CLOSED_MODAL: ViolationModalState = {
@@ -44,6 +50,7 @@ export function useViolationTracker({
   copyPasteBlock,
   onViolation,
   onDisqualify,
+  autoDisqualify = true,
 }: UseViolationTrackerOptions) {
   const [modal, setModal] = useState<ViolationModalState>(CLOSED_MODAL);
   const [warningsCount, setWarningsCount] = useState(0);
@@ -75,25 +82,34 @@ export function useViolationTracker({
 
   const handleViolation = useCallback(
     (type: ViolationType, message: string) => {
+      if (!activeRef.current) return;
+      if (violationInProgressRef.current) {
+        // A warning is already on screen. Record-only mode still logs it.
+        if (!autoDisqualify) onViolation(type, message);
+        return;
+      }
       clearTimers();
-      if (!activeRef.current || violationInProgressRef.current) return;
 
       violationInProgressRef.current = true;
       warningsCountRef.current += 1;
       setWarningsCount(warningsCountRef.current);
       onViolation(type, message);
 
-      if (warningsCountRef.current > maxWarnings) {
+      if (autoDisqualify && warningsCountRef.current > maxWarnings) {
         disqualify();
         return;
       }
 
+      const counter = autoDisqualify ? `Warning ${warningsCountRef.current} of ${maxWarnings}` : `Warning ${warningsCountRef.current}`;
+      const footer = autoDisqualify
+        ? "Returning to fullscreen in 5 seconds...\nIf it doesn't work, click the button below."
+        : "This has been recorded for the invigilator.\nReturning to fullscreen in 5 seconds...";
       setModal({
         open: true,
         title: "Warning",
         mode: "fullscreen-retry",
         actionLabel: "Return to Fullscreen",
-        message: `Warning ${warningsCountRef.current} of ${maxWarnings}\n\n${message}\n\nReturning to fullscreen in 5 seconds...\nIf it doesn't work, click the button below.`,
+        message: `${counter}\n\n${message}\n\n${footer}`,
       });
 
       let attempts = 0;
@@ -115,11 +131,13 @@ export function useViolationTracker({
         }
       }, 500);
 
-      disqualifyTimeoutRef.current = window.setTimeout(() => {
-        if (violationInProgressRef.current) disqualify();
-      }, 30000);
+      if (autoDisqualify) {
+        disqualifyTimeoutRef.current = window.setTimeout(() => {
+          if (violationInProgressRef.current) disqualify();
+        }, 30000);
+      }
     },
-    [clearTimers, disqualify, maxWarnings, onViolation]
+    [clearTimers, disqualify, maxWarnings, onViolation, autoDisqualify]
   );
 
   const restoreFullscreen = useCallback(() => {
@@ -185,7 +203,17 @@ export function useViolationTracker({
     };
 
     const onContextMenu = (e: MouseEvent) => {
-      if (activeRef.current && copyPasteBlock) e.preventDefault();
+      if (activeRef.current && copyPasteBlock) {
+        e.preventDefault();
+        if (!autoDisqualify) onViolation("contextmenu", "Right-click is blocked during the assessment.");
+      }
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      if (activeRef.current && copyPasteBlock) {
+        e.preventDefault();
+        if (!autoDisqualify) onViolation("paste", "Pasting is blocked during the assessment.");
+      }
     };
 
     const onCopy = (e: ClipboardEvent) => {
@@ -205,6 +233,9 @@ export function useViolationTracker({
           return;
         }
         e.preventDefault();
+        if (!autoDisqualify && ["c", "v", "x"].includes(key)) {
+          onViolation(key === "v" ? "paste" : "copy", "Copy/paste shortcuts are blocked during the assessment.");
+        }
       }
       if (e.key === "F12") e.preventDefault();
     };
@@ -217,6 +248,7 @@ export function useViolationTracker({
     window.addEventListener("resize", onResize);
     document.addEventListener("contextmenu", onContextMenu);
     document.addEventListener("copy", onCopy);
+    document.addEventListener("paste", onPaste);
     document.addEventListener("keydown", onKeyDown);
 
     return () => {
@@ -228,10 +260,11 @@ export function useViolationTracker({
       window.removeEventListener("resize", onResize);
       document.removeEventListener("contextmenu", onContextMenu);
       document.removeEventListener("copy", onCopy);
+      document.removeEventListener("paste", onPaste);
       document.removeEventListener("keydown", onKeyDown);
       clearTimers();
     };
-  }, [handleViolation, fullscreenRequired, tabSwitchMonitoring, copyPasteBlock, clearTimers]);
+  }, [handleViolation, fullscreenRequired, tabSwitchMonitoring, copyPasteBlock, clearTimers, autoDisqualify, onViolation]);
 
   return { modal, warningsCount, acknowledgeModal };
 }
