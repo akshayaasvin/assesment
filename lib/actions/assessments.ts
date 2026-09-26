@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { isAdminUid } from "@/lib/auth/admin-uid";
 import type { AssessmentStatus } from "@/types/database";
 
 const sectionSchema = z.object({
@@ -317,13 +318,23 @@ export async function setAssessmentStatus(id: string, status: AssessmentStatus) 
   return { success: true };
 }
 
-export async function deleteAssessment(id: string) {
+export async function deleteAssessment(id: string, confirmation: string) {
+  if (confirmation !== "DELETE") return { error: "Type DELETE to confirm." };
   const supabase = await createClient();
-  const { error } = await supabase.from("assessments").delete().eq("id", id);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user || !isAdminUid(user.id)) return { error: "You do not have permission to perform this action." };
+
+  // Only THIS assessment's attempts are removed (ON DELETE CASCADE on attempts.assessment_id);
+  // candidate registrations and other assessments' results are untouched.
+  const { count } = await supabase.from("attempts").select("id", { count: "exact", head: true }).eq("assessment_id", id);
+  const { data: deleted, error } = await supabase.from("assessments").delete().eq("id", id).select("id");
   if (error) return { error: error.message };
+  if (!deleted?.length) return { error: "That assessment no longer exists, or you do not have permission to delete it." };
 
   revalidatePath("/admin/assessments");
-  return { success: true };
+  return { success: true, results: count ?? 0 };
 }
 
 export async function duplicateAssessment(id: string) {

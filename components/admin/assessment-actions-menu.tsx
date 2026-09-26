@@ -13,8 +13,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ConfirmAction } from "@/components/shared/confirm-action";
-import { setAssessmentStatus, duplicateAssessment, deleteAssessment } from "@/lib/actions/assessments";
+import { DeleteAssessmentDialog } from "@/components/admin/delete-assessment-dialog";
+import { setAssessmentStatus, duplicateAssessment } from "@/lib/actions/assessments";
 import type { AssessmentStatus } from "@/types/database";
 
 export function AssessmentActionsMenu({ id, status }: { id: string; status: AssessmentStatus }) {
@@ -85,21 +85,12 @@ export function AssessmentActionsMenu({ id, status }: { id: string; status: Asse
         >
           <Copy className="h-4 w-4" /> Duplicate
         </DropdownMenuItem>
-        <ConfirmAction
+        <DeleteAssessmentDialog
+          id={id}
           trigger={
             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive">
               <Trash2 className="h-4 w-4" /> Delete
             </DropdownMenuItem>
-          }
-          title="Delete this assessment?"
-          description="All sections and configuration will be removed. Candidate attempts already recorded are kept for audit history."
-          confirmLabel="Delete"
-          destructive
-          onConfirm={() =>
-            deleteAssessment(id).then((result) => {
-              if (!result?.error) router.refresh();
-              return result;
-            })
           }
         />
       </DropdownMenuContent>
