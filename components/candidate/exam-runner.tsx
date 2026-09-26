@@ -85,15 +85,12 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
     setQuestionIndex(0);
   }, [isLastSection, submit]);
 
-  const handleSectionExpire = useCallback(() => {
-    goToNextSection();
-  }, [goToNextSection]);
-
-  const { remaining, formatted } = useCountdownTimer(
-    (section?.durationMinutes ?? 0) * 60,
-    handleSectionExpire,
-    section?.id
-  );
+  // ONE timer for the whole test (not per section). Resumes from the server's
+  // remaining time after a refresh; submits the test when it reaches zero.
+  const totalSeconds = sections.reduce((t, s) => t + s.durationMinutes, 0) * 60;
+  const testSeconds =
+    typeof runtime.testRemainingSeconds === "number" ? Math.max(1, Math.min(runtime.testRemainingSeconds, totalSeconds)) : totalSeconds;
+  const { remaining, formatted } = useCountdownTimer(testSeconds, submit, "whole-test");
 
   const handleViolation = useCallback(
     (type: ViolationType, message: string) => {

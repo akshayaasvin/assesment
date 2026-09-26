@@ -74,6 +74,15 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
     attemptToken: attempt.attempt_token,
     assessmentTitle: assessment.title,
     currentSectionIndex: attempt.current_section_index,
+    // One timer for the whole test: total of all section durations minus the
+    // time since the attempt started (server time, so a refresh can't reset it).
+    testRemainingSeconds: Math.max(
+      0,
+      Math.round(
+        (sections ?? []).reduce((t, sec) => t + sec.duration_minutes, 0) * 60 -
+          (Date.now() - new Date(attempt.started_at ?? now).getTime()) / 1000
+      )
+    ),
     maxWarnings: assessment.max_warnings,
     warningsCount: attempt.warnings_count,
     settings: {

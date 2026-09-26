@@ -27,6 +27,8 @@ export interface RuntimeAssessment {
   attemptToken: string;
   assessmentTitle: string;
   currentSectionIndex: number;
+  /** Seconds left for the WHOLE test (one timer across all sections). */
+  testRemainingSeconds?: number | null;
   maxWarnings: number;
   warningsCount: number;
   settings: {
