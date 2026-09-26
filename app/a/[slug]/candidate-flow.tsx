@@ -5,7 +5,7 @@ import { RegisterForm, type CandidateDetails } from "@/components/candidate/regi
 import { SystemCheck } from "@/components/candidate/system-check";
 import { ExamRunner } from "@/components/candidate/exam-runner";
 import { FinishScreen } from "@/components/candidate/finish-screen";
-import { requestFullscreen } from "@/hooks/use-fullscreen";
+import { tryEnterFullscreen } from "@/hooks/use-fullscreen";
 import type { RuntimeAssessment } from "@/types/domain";
 
 interface AssessmentPublicInfo {
@@ -43,7 +43,8 @@ export function CandidateFlow({ slug, info }: { slug: string; info: AssessmentPu
 
   async function handleReadyToStart() {
     if (!attempt) return;
-    if (info.fullscreenRequired) requestFullscreen();
+    // Try fullscreen, but never block on it: the test starts either way.
+    const inFullscreen = info.fullscreenRequired ? await tryEnterFullscreen() : false;
 
     const res = await fetch(`/api/attempts/${attempt.attemptId}/start`, {
       method: "POST",
@@ -55,7 +56,23 @@ export function CandidateFlow({ slug, info }: { slug: string; info: AssessmentPu
       alert(data.error ?? "Could not start your attempt.");
       return;
     }
-    setRuntime(data);
+    const fullscreenUnavailable = info.fullscreenRequired && !inFullscreen;
+    if (fullscreenUnavailable) {
+      // Recorded for the admin (not counted as a warning).
+      fetch(`/api/attempts/${attempt.attemptId}/violation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attemptToken: attempt.attemptToken,
+          type: "fullscreen_exit",
+          message: "Fullscreen not available or declined at start; test started without fullscreen.",
+          logOnly: true,
+        }),
+      }).catch(() => {});
+    }
+    // Without fullscreen, don't monitor fullscreen exits/resizes - on phones the
+    // screen resizes constantly and would pile up false warnings.
+    setRuntime(fullscreenUnavailable ? { ...data, settings: { ...data.settings, fullscreenRequired: false } } : data);
     setStep("exam");
   }
 
@@ -80,12 +97,7 @@ export function CandidateFlow({ slug, info }: { slug: string; info: AssessmentPu
   if (step === "check") {
     return (
       <div className="flex min-h-screen items-center justify-center px-4 py-10">
-        <SystemCheck
-          cameraRequired={info.cameraRequired}
-          micRequired={info.micRequired}
-          fullscreenRequired={info.fullscreenRequired}
-          onReady={handleReadyToStart}
-        />
+        <SystemCheck cameraRequired={info.cameraRequired} micRequired={info.micRequired} onReady={handleReadyToStart} />
       </div>
     );
   }

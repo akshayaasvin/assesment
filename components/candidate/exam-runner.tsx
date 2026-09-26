@@ -164,7 +164,6 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 select-none">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card px-5 py-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Assistlana</p>
           <h1 className="text-lg font-semibold text-foreground">{runtime.assessmentTitle}</h1>
           <p className="text-sm text-muted-foreground">{section.title}</p>
         </div>

@@ -25,6 +25,29 @@ export function requestFullscreen() {
   else if (el.msRequestFullscreen) el.msRequestFullscreen();
 }
 
+/**
+ * Tries to enter fullscreen and reports whether it worked, within ~1.5 s.
+ * Never throws and never blocks: iPhone Safari and some Android browsers
+ * don't support fullscreen, and users can refuse it.
+ */
+export async function tryEnterFullscreen(timeoutMs = 1500): Promise<boolean> {
+  if (isDocumentFullscreen()) return true;
+  const el = document.documentElement as HTMLElement & { webkitRequestFullscreen?: () => void };
+  try {
+    if (el.requestFullscreen) {
+      await Promise.race([el.requestFullscreen(), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    } else {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+  return isDocumentFullscreen();
+}
+
 export function exitFullscreen() {
   const doc = document as Document & {
     webkitExitFullscreen?: () => void;

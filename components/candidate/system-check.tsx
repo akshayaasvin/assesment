@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Camera, Mic, Monitor, Maximize, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Camera, Mic, Monitor, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useMediaPermissions } from "@/hooks/use-media-permissions";
@@ -9,7 +9,6 @@ import { useMediaPermissions } from "@/hooks/use-media-permissions";
 interface Props {
   cameraRequired: boolean;
   micRequired: boolean;
-  fullscreenRequired: boolean;
   onReady: () => void;
 }
 
@@ -45,7 +44,7 @@ function StatusRow({
   );
 }
 
-export function SystemCheck({ cameraRequired, micRequired, fullscreenRequired, onReady }: Props) {
+export function SystemCheck({ cameraRequired, micRequired, onReady }: Props) {
   const { camera, mic, isReady, requestAccess } = useMediaPermissions({ cameraRequired, micRequired });
 
   useEffect(() => {
@@ -63,7 +62,6 @@ export function SystemCheck({ cameraRequired, micRequired, fullscreenRequired, o
         <StatusRow icon={Camera} label="Camera" state={cameraRequired ? camera : "skip"} />
         <StatusRow icon={Mic} label="Microphone" state={micRequired ? mic : "skip"} />
         <StatusRow icon={Monitor} label="Browser" state="granted" />
-        <StatusRow icon={Maximize} label="Fullscreen" state={fullscreenRequired ? "idle" : "skip"} />
 
         {(cameraRequired || micRequired) && !isReady && (
           <Button variant="outline" className="w-full" onClick={requestAccess}>
@@ -74,9 +72,7 @@ export function SystemCheck({ cameraRequired, micRequired, fullscreenRequired, o
         <Button className="w-full" size="lg" disabled={!isReady} onClick={onReady}>
           Start Test
         </Button>
-        <p className="text-center text-xs text-muted-foreground">
-          The test will go fullscreen{fullscreenRequired ? " and stay there until you submit" : ""}.
-        </p>
+        <p className="text-center text-sm text-muted-foreground">Click Start Test to begin.</p>
       </CardContent>
     </Card>
   );

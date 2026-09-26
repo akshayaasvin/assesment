@@ -43,7 +43,6 @@ export function FinishScreen({
               )}
             </>
           )}
-          <p className="mt-4 text-xs font-medium uppercase tracking-wide text-primary">Assistlana</p>
         </CardContent>
       </Card>
     </div>

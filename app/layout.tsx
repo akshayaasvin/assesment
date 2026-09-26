@@ -14,9 +14,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Neutral default for candidate pages; the admin section sets its own title (app/admin/layout.tsx).
 export const metadata: Metadata = {
-  title: "Assistlana Assessment Platform",
-  description: "Online assessment management and candidate monitoring platform.",
+  title: "Assessment",
+  description: "Online assessment.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

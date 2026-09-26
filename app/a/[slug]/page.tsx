@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAssessmentOpen } from "@/lib/assessment/scheduling";
@@ -13,6 +14,13 @@ interface AssessmentRow {
   start_at: string | null;
   end_at: string | null;
   roles: { label: string } | null;
+}
+
+/** Browser tab shows only the assessment name. */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const { data } = await createAdminClient().from("assessments").select("title").eq("slug", slug).maybeSingle();
+  return { title: data?.title ?? "Assessment" };
 }
 
 export default async function CandidateAssessmentPage({ params }: { params: Promise<{ slug: string }> }) {
