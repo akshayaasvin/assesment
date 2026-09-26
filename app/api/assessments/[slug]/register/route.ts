@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAssessmentOpen } from "@/lib/assessment/scheduling";
+import { hasTakenAnotherAssessment, ONE_ROLE_MESSAGE } from "@/lib/assessment/one-per-person";
 
 const bodySchema = z.object({
   name: z.string().trim().min(1),
@@ -68,6 +69,21 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
   if (existingAttempt?.status === "disqualified") {
     return NextResponse.json({ error: "You are disqualified and cannot attempt this test." }, { status: 403 });
   }
+  // Resuming this same test (after a refresh) is always allowed.
+  if (existingAttempt?.status === "in_progress") {
+    return NextResponse.json({ attemptId: existingAttempt.id, attemptToken: existingAttempt.attempt_token });
+  }
+
+  // One test per person: same email or phone already took another role today.
+  try {
+    if (await hasTakenAnotherAssessment(admin, { email, phone }, assessment.id)) {
+      return NextResponse.json({ error: ONE_ROLE_MESSAGE }, { status: 409 });
+    }
+  } catch (e) {
+    console.error("[register] one-per-person check failed:", e);
+    return NextResponse.json({ error: "Could not register. Please try again." }, { status: 500 });
+  }
+
   if (existingAttempt) {
     return NextResponse.json({ attemptId: existingAttempt.id, attemptToken: existingAttempt.attempt_token });
   }

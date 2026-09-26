@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildRuntimeSection } from "@/lib/assessment/section-resolver";
+import { hasTakenAnotherAssessment, ONE_ROLE_MESSAGE } from "@/lib/assessment/one-per-person";
 import type { RuntimeAssessment } from "@/types/domain";
 
 const bodySchema = z.object({ attemptToken: z.string().min(1) });
@@ -22,6 +23,18 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
 
   const { data: assessment } = await admin.from("assessments").select("*").eq("id", attempt.assessment_id).single();
   if (!assessment) return NextResponse.json({ error: "Assessment not found." }, { status: 404 });
+
+  if (attempt.status === "not_started") {
+    const { data: candidate } = await admin.from("candidates").select("email, phone").eq("id", attempt.candidate_id).single();
+    try {
+      if (candidate && (await hasTakenAnotherAssessment(admin, candidate, assessment.id))) {
+        return NextResponse.json({ error: ONE_ROLE_MESSAGE }, { status: 409 });
+      }
+    } catch (e) {
+      console.error("[start] one-per-person check failed:", e);
+      return NextResponse.json({ error: "Could not start your attempt. Please press Start Test again." }, { status: 500 });
+    }
+  }
 
   const { data: sections } = await admin
     .from("assessment_sections")
