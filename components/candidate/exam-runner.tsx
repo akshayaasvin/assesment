@@ -52,6 +52,7 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
   });
   const [marked, setMarked] = useState<Record<string, boolean>>({});
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const isSubmittingRef = useRef(false);
 
   const section = sections[sectionIndex];
@@ -122,15 +123,14 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
     return () => clearInterval(interval);
   }, [attemptId, attemptToken]);
 
-  function selectOption(optionId: string) {
+  async function selectOption(optionId: string) {
     if (!question) return;
     setAnswers((prev) => ({ ...prev, [question.id]: optionId }));
-    callApi(`/api/attempts/${attemptId}/answer`, {
-      attemptToken,
-      questionId: question.id,
-      selectedOptionId: optionId,
-      currentSectionIndex: sectionIndex,
-    });
+    const body = { attemptToken, questionId: question.id, selectedOptionId: optionId, currentSectionIndex: sectionIndex };
+    let result = await callApi(`/api/attempts/${attemptId}/answer`, body);
+    if (!result?.ok) result = await callApi(`/api/attempts/${attemptId}/answer`, body); // one retry
+    // Tell the candidate instead of failing silently (answers are saved one by one).
+    setSaveError(result?.ok ? null : (result?.error ?? "Your last answer was not saved. Check your internet connection and select it again."));
   }
 
   function toggleMark() {
@@ -184,6 +184,11 @@ export function ExamRunner({ runtime, savedAnswers, onSubmitted, onDisqualified 
             Question {questionIndex + 1} of {section.questions.length} &middot; {question.marks} mark
             {question.marks === 1 ? "" : "s"}
           </p>
+          {saveError && (
+            <p role="alert" className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
+              {saveError} If this keeps happening, tell the invigilator.
+            </p>
+          )}
           <h2 className="mb-6 text-base font-medium leading-relaxed text-foreground">{question.text}</h2>
 
           <div className="space-y-2.5">

@@ -35,7 +35,17 @@ export async function POST(request: Request, context: { params: Promise<{ attemp
 
   const now = new Date().toISOString();
   if (attempt.status === "not_started") {
-    await admin.from("attempts").update({ status: "in_progress", started_at: now, last_seen_at: now }).eq("id", attemptId);
+    // If this fails, stop here: answers are only accepted for in-progress
+    // attempts, so showing the questions would let the candidate take a test
+    // the server never records.
+    const { error: startError } = await admin
+      .from("attempts")
+      .update({ status: "in_progress", started_at: now, last_seen_at: now })
+      .eq("id", attemptId);
+    if (startError) {
+      console.error("[start] could not mark attempt in progress:", startError);
+      return NextResponse.json({ error: "Could not start your attempt. Please press Start Test again." }, { status: 500 });
+    }
     await admin.from("assessment_events").insert({ attempt_id: attemptId, assessment_id: assessment.id, type: "started" });
   } else {
     await admin.from("attempts").update({ last_seen_at: now }).eq("id", attemptId);

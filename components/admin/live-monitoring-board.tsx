@@ -35,6 +35,15 @@ export function LiveMonitoringBoard({ initial }: { initial: LiveAttempt[] }) {
   const attempts = initial;
   const [, forceTick] = useState(0);
 
+  // Refetch from the server every 10 s, so the list stays current even when
+  // the realtime connection drops.
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [router]);
+
   useEffect(() => {
     const interval = setInterval(() => forceTick((n) => n + 1), 5000);
     return () => clearInterval(interval);
